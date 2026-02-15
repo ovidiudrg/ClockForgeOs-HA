@@ -14,7 +14,7 @@ from .api import ClockForgeOSApiError
 # List of all enumerated /saveSetting keys to expose as selects
 SELECT_KEYS = {
     "rgbEffect": [
-        "off", "static", "rainbow", "breath", "chase", "custom"
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"
     ],
 }
 

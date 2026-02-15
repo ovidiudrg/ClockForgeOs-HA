@@ -17,8 +17,7 @@ NUMERIC_KEYS = [
     "utc_offset", "tubesWakeSeconds", "interval", "alarmTimeHours", "alarmTimeMinutes", "alarmPeriod",
     "dayTimeHours", "dayTimeMinutes", "nightTimeHours", "nightTimeMinutes",
     "dateRepeatMin", "tempRepeatMin", "dateStart", "dateEnd", "tempStart", "tempEnd", "humidStart", "humidEnd", "pressureStart", "pressureEnd",
-    "corrT0", "corrT1", "corrH0", "corrH1", "cathProtMin", "uiWidth"
-    "rgbBrightness",
+    "corrT0", "corrT1", "corrH0", "corrH1", "cathProtMin", "uiWidth",
     "rgbAnimationSpeed",
 ]
 
@@ -33,6 +32,7 @@ NUMERIC_META = {
     "rgbFixG": dict(min_value=0, max_value=255, step=1),
     "rgbFixB": dict(min_value=0, max_value=255, step=1),
     "rgbSpeed": dict(min_value=0, max_value=255, step=1),
+    "rgbAnimationSpeed": dict(min_value=0, max_value=255, step=1),
     "rgbMinBrightness": dict(min_value=0, max_value=255, step=1),
     "utc_offset": dict(min_value=-720, max_value=720, step=1),
     "tubesWakeSeconds": dict(min_value=0, max_value=3600, step=1),

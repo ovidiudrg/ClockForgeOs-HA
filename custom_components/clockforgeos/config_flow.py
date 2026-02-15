@@ -33,6 +33,8 @@ class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api = ClockForgeOSApi(async_get_clientsession(self.hass), host, password or None)
             try:
                 await api.get_system_info()
+                if password:
+                    await api.authenticate()
             except ClockForgeOSApiError:
                 errors["base"] = "cannot_connect"
             else:

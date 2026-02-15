@@ -19,7 +19,7 @@ BOOLEAN_SWITCH_KEYS = [
     "showTimeDate",
     "showTemperature",
     "showHumidity",
-    "enablePressDisplay",
+    "showPressure",
 ]
 
 SWITCH_ICONS = {
@@ -38,6 +38,7 @@ SWITCH_ICONS = {
     "enableTempDisplay": "mdi:thermometer",
     "enableHumidDisplay": "mdi:water-percent",
     "enablePressDisplay": "mdi:gauge",
+    "showPressure": "mdi:gauge",
     "enableDoubleBlink": "mdi:flash-alert",
     "enableRadar": "mdi:radar",
 }

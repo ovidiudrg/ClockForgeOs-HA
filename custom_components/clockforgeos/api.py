@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from time import monotonic
 from typing import Any
 
-from aiohttp import BasicAuth, ClientError, ClientResponseError, ClientSession
+from aiohttp import ClientError, ClientResponseError, ClientSession
 
 
 class ClockForgeOSApiError(Exception):
@@ -10,7 +11,7 @@ class ClockForgeOSApiError(Exception):
 
 
 class ClockForgeOSApi:
-    """Simple API client for ClockForgeOS firmware."""
+    """API client for ClockForgeOS firmware."""
 
     def __init__(
         self,
@@ -21,37 +22,8 @@ class ClockForgeOSApi:
         self._session = session
         self._base = f"http://{host}"
         self._password = password
-
-    def _auth_payload(self) -> dict[str, str]:
-        if not self._password:
-            return {}
-        return {
-            "password": self._password,
-            "pass": self._password,
-            "pwd": self._password,
-        }
-
-    def _auth_query(self) -> dict[str, str]:
-        if not self._password:
-            return {}
-        return {
-            "password": self._password,
-            "pass": self._password,
-            "pwd": self._password,
-        }
-
-    def _basic_auth(self) -> BasicAuth | None:
-        if not self._password:
-            return None
-        # Use empty string for username, only password
-        return BasicAuth("", self._password)
-
-    def _auth_headers(self) -> dict[str, str]:
-        if not self._password:
-            return {}
-        return {
-            "X-Password": self._password,
-        }
+        self._token: str | None = None
+        self._token_expires_at: float = 0.0
 
     async def _get_json(self, path: str) -> dict[str, Any]:
         try:
@@ -67,73 +39,69 @@ class ClockForgeOSApi:
     async def get_current_info(self) -> dict[str, Any]:
         return await self._get_json("/getCurrentInfos")
 
-    async def save_setting(self, key: str, value: str) -> None:
-        data_with_password = {"key": key, "value": value, **self._auth_payload()}
-        data_plain = {"key": key, "value": value}
-        json_with_password = {"key": key, "value": value, **self._auth_payload()}
-        json_plain = {"key": key, "value": value}
-        auth_query = self._auth_query()
-        auth_headers = self._auth_headers()
-        basic_auth = self._basic_auth()
+    async def authenticate(self) -> None:
+        """Validate password by obtaining an auth token."""
+        await self._ensure_token()
 
-        attempts: list[dict[str, Any]] = [
-            {
-                "method": "post",
-                "data": data_with_password,
-                "params": auth_query,
-                "headers": auth_headers,
-                "auth": basic_auth,
-            },
-            {
-                "method": "post",
-                "json": json_with_password,
-                "params": auth_query,
-                "headers": auth_headers,
-                "auth": basic_auth,
-            },
-            {
-                "method": "get",
-                "params": {"key": key, "value": value, **auth_query},
-                "headers": auth_headers,
-                "auth": basic_auth,
-            },
-            {
-                "method": "post",
-                "data": data_with_password,
-                "params": auth_query,
-                "headers": auth_headers,
-            },
-            {
-                "method": "post",
-                "json": json_with_password,
-                "headers": auth_headers,
-            },
-            {
-                "method": "post",
-                "data": data_plain,
-                "headers": auth_headers,
-                "auth": basic_auth,
-            },
-            {
-                "method": "post",
-                "data": data_plain,
-                "params": auth_query,
-            },
-            {
-                "method": "post",
-                "json": json_plain,
-                "params": auth_query,
-            },
-            {
-                "method": "get",
-        async def save_setting(self, key: str, value: str) -> None:
-            data = {"key": key, "value": value, **self._auth_payload()}
-            try:
-                async with self._session.post(f"{self._base}/saveSetting", data=data, timeout=10) as response:
-                    response.raise_for_status()
-                    return
-            except ClientResponseError as err:
-                raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
-            except (ClientError, TimeoutError) as err:
-                raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
-                    response.raise_for_status()
+    async def _login(self) -> None:
+        if not self._password:
+            return
+
+        try:
+            async with self._session.post(
+                f"{self._base}/auth/login",
+                data={"password": self._password},
+                timeout=10,
+            ) as response:
+                response.raise_for_status()
+                payload = await response.json(content_type=None)
+        except (ClientError, TimeoutError, ValueError) as err:
+            raise ClockForgeOSApiError(f"POST /auth/login failed: {err}") from err
+
+        token = payload.get("token")
+        if not token:
+            raise ClockForgeOSApiError("POST /auth/login failed: token missing in response")
+
+        ttl_sec = int(payload.get("ttlSec", 1800))
+        self._token = str(token)
+        self._token_expires_at = monotonic() + max(1, ttl_sec - 5)
+
+    async def _ensure_token(self) -> None:
+        if not self._password:
+            return
+        if self._token and monotonic() < self._token_expires_at:
+            return
+        await self._login()
+
+    async def save_setting(self, key: str, value: str) -> None:
+        await self._ensure_token()
+
+        headers: dict[str, str] = {}
+        if self._token:
+            headers["X-Auth-Token"] = self._token
+
+        try:
+            async with self._session.post(
+                f"{self._base}/saveSetting",
+                data={"key": key, "value": value},
+                headers=headers,
+                timeout=10,
+            ) as response:
+                if response.status == 401 and self._password:
+                    # Token expired/invalid: refresh once and retry.
+                    await self._login()
+                    retry_headers = {"X-Auth-Token": self._token or ""}
+                    async with self._session.post(
+                        f"{self._base}/saveSetting",
+                        data={"key": key, "value": value},
+                        headers=retry_headers,
+                        timeout=10,
+                    ) as retry_response:
+                        retry_response.raise_for_status()
+                        return
+
+                response.raise_for_status()
+        except ClientResponseError as err:
+            raise ClockForgeOSApiError(f"POST /saveSetting failed: {err.status} {err.message}") from err
+        except (ClientError, TimeoutError) as err:
+            raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
