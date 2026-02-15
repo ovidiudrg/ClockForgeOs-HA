@@ -1,78 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DATA_COORDINATOR, DOMAIN
 from .entity import ClockForgeOSEntity
 
+SENSOR_EXCLUDE_KEYS = set([
+    # Exclude keys that are already covered by other entities or are not useful as sensors
+    "displayPower", "onboardLed", "enableBlink", "enableDST", "enableAutoShutoff", "tubesSleep", "wakeOnMotionEnabled", "debugEnabled", "manualDisplayOff", "alarmEnable", "mqttEnable", "enableTimeDisplay", "enableTempDisplay", "enableHumidDisplay", "enablePressDisplay", "enableDoubleBlink", "enableRadar", "cathodeProtect"
+])
 
-@dataclass(frozen=True)
-class ClockForgeOSSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[dict[str, Any], dict[str, Any]], Any] = lambda _s, _c: None
-
-
-SENSORS: tuple[ClockForgeOSSensorDescription, ...] = (
-    ClockForgeOSSensorDescription(
-        key="os_version",
-        name="OS Version",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("osVersion"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="firmware_id",
-        name="Firmware ID",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("firmwareID"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="wifi_status",
-        name="WiFi Status",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("wifiStatus"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="wifi_signal",
-        name="WiFi Signal",
-        native_unit_of_measurement="dBm",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("wifiSignal"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="cpu_temp",
-        name="CPU Temperature",
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("cpuTemp"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="free_heap",
-        name="Free Heap",
-        native_unit_of_measurement="B",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("freeHeap"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="uptime_minutes",
-        name="Uptime Minutes",
-        native_unit_of_measurement="min",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s, _c: s.get("uptimeMinutes"),
-    ),
-    ClockForgeOSSensorDescription(
-        key="current_time",
-        name="Clock Time",
-        icon="mdi:clock-digital",
-        value_fn=lambda _s, c: c.get("currentDateTime") or c.get("currentTime"),
-    ),
-)
-
+def _prettify_name(key: str) -> str:
+    import re
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1 \2', key)
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1 \2', s1)
+    return s2.replace('_', ' ').title()
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -80,17 +26,33 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    async_add_entities(ClockForgeOSSensor(coordinator, entry, desc) for desc in SENSORS)
+    # Gather all keys from system_info, current_info, and public_config
+    system_info = coordinator.data.get("system_info", {})
+    current_info = coordinator.data.get("current_info", {})
+    public_config = coordinator.data.get("public_config", {})
+    all_keys = set(system_info) | set(current_info) | set(public_config)
+    # Exclude keys that are handled by other platforms
+    sensor_keys = [k for k in all_keys if k not in SENSOR_EXCLUDE_KEYS]
+    sensors = [
+        ClockForgeOSDynamicSensor(coordinator, entry, key)
+        for key in sensor_keys
+    ]
+    async_add_entities(sensors)
 
-
-class ClockForgeOSSensor(ClockForgeOSEntity, SensorEntity):
-    def __init__(self, coordinator, entry: ConfigEntry, description: ClockForgeOSSensorDescription) -> None:
+class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
+    def __init__(self, coordinator, entry: ConfigEntry, key: str) -> None:
         super().__init__(coordinator)
-        self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._key = key
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_name = _prettify_name(key)
 
     @property
     def native_value(self):
-        system_info = self.coordinator.data.get("system_info", {})
+        # Prefer current_info, then system_info, then public_config
         current_info = self.coordinator.data.get("current_info", {})
-        return self.entity_description.value_fn(system_info, current_info)
+        system_info = self.coordinator.data.get("system_info", {})
+        public_config = self.coordinator.data.get("public_config", {})
+        for d in (current_info, system_info, public_config):
+            if self._key in d:
+                return d[self._key]
+        return None

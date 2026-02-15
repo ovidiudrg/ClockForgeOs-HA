@@ -16,12 +16,10 @@ class ClockForgeOSApi:
         self,
         session: ClientSession,
         host: str,
-        admin_username: str = "admin",
         admin_password: str | None = None,
     ) -> None:
         self._session = session
         self._base = f"http://{host}"
-        self._admin_username = admin_username
         self._admin_password = admin_password
 
     def _auth_payload(self) -> dict[str, str]:
@@ -49,7 +47,8 @@ class ClockForgeOSApi:
     def _basic_auth(self) -> BasicAuth | None:
         if not self._admin_password:
             return None
-        return BasicAuth(self._admin_username, self._admin_password)
+        # Some firmware may require a username, but if not, use empty string
+        return BasicAuth("", self._admin_password)
 
     def _auth_headers(self) -> dict[str, str]:
         if not self._admin_password:
