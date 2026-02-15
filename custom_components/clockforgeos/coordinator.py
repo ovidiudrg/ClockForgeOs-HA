@@ -20,7 +20,7 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         hass: HomeAssistant,
         host: str,
         update_interval: timedelta,
-        admin_password: str | None = None,
+        password: str | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -29,7 +29,7 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=update_interval,
         )
         self.host = host
-        self.api = ClockForgeOSApi(async_get_clientsession(hass), host, admin_password)
+        self.api = ClockForgeOSApi(async_get_clientsession(hass), host, password)
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
