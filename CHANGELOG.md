@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.6 - 2026-02-15
+- Fixed integration load errors that caused `Config flow could not be loaded: {"message":"Invalid handler specified"}`.
+- Reworked API write authentication to match ClockForgeOS firmware token flow:
+  - `POST /auth/login` with configured password
+  - `POST /saveSetting` using `X-Auth-Token`
+  - automatic token refresh/retry on `401`
+- Enabled all supported HA platforms in setup: `sensor`, `switch`, `number`, `select`.
+- Added/validated requested control entities:
+  - Switches: `displayPower`, `alarmEnable`, `showTimeDate`, `showTemperature`, `showHumidity`, `showPressure`
+  - Numbers: `rgbBrightness`, `rgbAnimationSpeed`
+  - Select: `rgbEffect`
+- Fixed `number.py` key list issues that could break platform setup.
+- Updated integration metadata to version `0.1.6`.
+
 ## 0.1.5 - 2026-02-15
 - Expanded `/saveSetting` compatibility with additional password key variants (`adminPassword`, `pass`, `pwd`).
 - Added write fallbacks across request styles (form POST, JSON POST, and GET query fallback).
