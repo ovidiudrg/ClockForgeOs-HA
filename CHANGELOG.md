@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-02-15
+- Added optional `admin_password` setting in config flow and options flow.
+- Added password-aware `/saveSetting` payload to support protected write operations.
+- Updated integration metadata to version `0.1.2`.
+
 ## 0.1.1 - 2026-02-15
 - Fixed `hacs.json` Home Assistant minimum version format for HACS compatibility.
 - Updated integration version metadata to `0.1.1`.

@@ -5,7 +5,7 @@
 Custom integration for ClockForgeOS devices.
 
 ## Release
-- Current version: **0.1.1**
+- Current version: **0.1.2**
 - Changelog: `CHANGELOG.md`
 
 ## Features
@@ -30,6 +30,6 @@ Your ClockForgeOS firmware should expose:
 
 ## Notes
 - This integration uses HTTP polling.
-- If auth is enabled on firmware endpoints, extend `api.py` with headers/token.
+- If your firmware requires admin password for writes, set **Admin password** in integration options.
 - Icon asset used by this repo is `assets/favicon.svg`.
 - For the icon to appear in Home Assistant/HACS UI, publish the same icon to Home Assistant brands for domain `clockforgeos`.

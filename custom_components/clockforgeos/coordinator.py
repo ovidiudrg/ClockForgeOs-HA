@@ -15,7 +15,13 @@ from .const import DOMAIN
 class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator for ClockForgeOS data."""
 
-    def __init__(self, hass: HomeAssistant, host: str, update_interval: timedelta) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        host: str,
+        update_interval: timedelta,
+        admin_password: str | None = None,
+    ) -> None:
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
@@ -23,7 +29,7 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=update_interval,
         )
         self.host = host
-        self.api = ClockForgeOSApi(async_get_clientsession(hass), host)
+        self.api = ClockForgeOSApi(async_get_clientsession(hass), host, admin_password)
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:

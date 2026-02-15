@@ -12,9 +12,18 @@ class ClockForgeOSApiError(Exception):
 class ClockForgeOSApi:
     """Simple API client for ClockForgeOS firmware."""
 
-    def __init__(self, session: ClientSession, host: str) -> None:
+    def __init__(self, session: ClientSession, host: str, admin_password: str | None = None) -> None:
         self._session = session
         self._base = f"http://{host}"
+        self._admin_password = admin_password
+
+    def _auth_payload(self) -> dict[str, str]:
+        if not self._admin_password:
+            return {}
+        return {
+            "password": self._admin_password,
+            "admin_password": self._admin_password,
+        }
 
     async def _get_json(self, path: str) -> dict[str, Any]:
         try:
@@ -34,7 +43,7 @@ class ClockForgeOSApi:
         try:
             async with self._session.post(
                 f"{self._base}/saveSetting",
-                data={"key": key, "value": value},
+                data={"key": key, "value": value, **self._auth_payload()},
                 timeout=10,
             ) as response:
                 response.raise_for_status()
