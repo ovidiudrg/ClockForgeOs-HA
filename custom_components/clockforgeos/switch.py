@@ -19,7 +19,7 @@ BOOLEAN_SWITCH_KEYS = [
     "showTimeDate",
     "showTemperature",
     "showHumidity",
-    "showPressure",
+    "enablePressDisplay",
 ]
 
 SWITCH_ICONS = {
