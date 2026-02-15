@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 - 2026-02-15
+- Expanded `/saveSetting` compatibility with additional password key variants (`adminPassword`, `pass`, `pwd`).
+- Added write fallbacks across request styles (form POST, JSON POST, and GET query fallback).
+- Updated integration metadata to version `0.1.5`.
+
 ## 0.1.4 - 2026-02-15
 - Added explicit `admin_username` and `admin_password` fields in both setup and options flows.
 - Updated write authentication to use configured admin username for HTTP basic auth.

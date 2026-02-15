@@ -30,6 +30,9 @@ class ClockForgeOSApi:
         return {
             "password": self._admin_password,
             "admin_password": self._admin_password,
+            "adminPassword": self._admin_password,
+            "pass": self._admin_password,
+            "pwd": self._admin_password,
         }
 
     def _auth_query(self) -> dict[str, str]:
@@ -38,6 +41,9 @@ class ClockForgeOSApi:
         return {
             "password": self._admin_password,
             "admin_password": self._admin_password,
+            "adminPassword": self._admin_password,
+            "pass": self._admin_password,
+            "pwd": self._admin_password,
         }
 
     def _basic_auth(self) -> BasicAuth | None:
@@ -69,41 +75,72 @@ class ClockForgeOSApi:
     async def save_setting(self, key: str, value: str) -> None:
         data_with_password = {"key": key, "value": value, **self._auth_payload()}
         data_plain = {"key": key, "value": value}
+        json_with_password = {"key": key, "value": value, **self._auth_payload()}
+        json_plain = {"key": key, "value": value}
         auth_query = self._auth_query()
         auth_headers = self._auth_headers()
         basic_auth = self._basic_auth()
 
         attempts: list[dict[str, Any]] = [
             {
+                "method": "post",
                 "data": data_with_password,
                 "params": auth_query,
                 "headers": auth_headers,
                 "auth": basic_auth,
             },
             {
+                "method": "post",
+                "json": json_with_password,
+                "params": auth_query,
+                "headers": auth_headers,
+                "auth": basic_auth,
+            },
+            {
+                "method": "get",
+                "params": {"key": key, "value": value, **auth_query},
+                "headers": auth_headers,
+                "auth": basic_auth,
+            },
+            {
+                "method": "post",
                 "data": data_with_password,
                 "params": auth_query,
                 "headers": auth_headers,
             },
             {
+                "method": "post",
+                "json": json_with_password,
+                "headers": auth_headers,
+            },
+            {
+                "method": "post",
                 "data": data_plain,
                 "headers": auth_headers,
                 "auth": basic_auth,
             },
             {
+                "method": "post",
                 "data": data_plain,
                 "params": auth_query,
+            },
+            {
+                "method": "post",
+                "json": json_plain,
+                "params": auth_query,
+            },
+            {
+                "method": "get",
+                "params": {"key": key, "value": value, **auth_query},
             },
         ]
 
         last_error: Exception | None = None
         for kwargs in attempts:
+            method = kwargs.pop("method")
             try:
-                async with self._session.post(
-                    f"{self._base}/saveSetting",
-                    timeout=10,
-                    **kwargs,
-                ) as response:
+                request = self._session.post if method == "post" else self._session.get
+                async with request(f"{self._base}/saveSetting", timeout=10, **kwargs) as response:
                     response.raise_for_status()
                     return
             except ClientResponseError as err:
