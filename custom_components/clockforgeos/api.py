@@ -126,27 +126,14 @@ class ClockForgeOSApi:
             },
             {
                 "method": "get",
-                "params": {"key": key, "value": value, **auth_query},
-            },
-        ]
-
-        last_error: Exception | None = None
-        for kwargs in attempts:
-            method = kwargs.pop("method")
+        async def save_setting(self, key: str, value: str) -> None:
+            data = {"key": key, "value": value, **self._auth_payload()}
             try:
-                request = self._session.post if method == "post" else self._session.get
-                async with request(f"{self._base}/saveSetting", timeout=10, **kwargs) as response:
+                async with self._session.post(f"{self._base}/saveSetting", data=data, timeout=10) as response:
                     response.raise_for_status()
                     return
             except ClientResponseError as err:
-                last_error = err
-                if err.status != 401:
-                    raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
-                continue
+                raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
             except (ClientError, TimeoutError) as err:
                 raise ClockForgeOSApiError(f"POST /saveSetting failed: {err}") from err
-
-        if last_error is not None:
-            raise ClockForgeOSApiError(f"POST /saveSetting failed: {last_error}") from last_error
-
-        raise ClockForgeOSApiError("POST /saveSetting failed: unknown authentication error")
+                    response.raise_for_status()
