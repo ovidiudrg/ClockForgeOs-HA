@@ -13,26 +13,13 @@ from .entity import ClockForgeOSEntity
 
 
 
-# List of all boolean /saveSetting keys to expose as switches
 BOOLEAN_SWITCH_KEYS = [
-    "enableBlink",
-    "enableDST",
-    "enableAutoShutoff",
-    "tubesSleep",
-    "wakeOnMotionEnabled",
-    "debugEnabled",
-    "onboardLed",
     "displayPower",
-    "manualDisplayOff",
     "alarmEnable",
-    "mqttEnable",
-    "enableTimeDisplay",
-    "enableTempDisplay",
-    "enableHumidDisplay",
-    "enablePressDisplay",
-    "enableDoubleBlink",
-    "enableRadar",
-    # Add more as needed from firmware
+    "showTimeDate",
+    "showTemperature",
+    "showHumidity",
+    "showPressure",
 ]
 
 SWITCH_ICONS = {

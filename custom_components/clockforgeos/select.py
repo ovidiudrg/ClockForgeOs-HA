@@ -13,43 +13,9 @@ from .api import ClockForgeOSApiError
 
 # List of all enumerated /saveSetting keys to expose as selects
 SELECT_KEYS = {
-    "animMode": [
-        "off", "fade", "scroll", "random", "wave", "sparkle", "rainbow", "custom"
-    ],
-    "dateMode": [
-        "off", "ddmmyy", "mmddyy", "yyddmm", "auto"
-    ],
-    "wifiMode": [
-        "sta", "ap", "sta+ap"
-    ],
-    "touchShortAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "touchDoubleAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "touchLongAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "gestureUpAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "gestureDownAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "gestureLeftAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
-    "gestureRightAction": [
-        "none", "toggle", "brightness", "effect", "alarm"
-    ],
     "rgbEffect": [
         "off", "static", "rainbow", "breath", "chase", "custom"
     ],
-    "tempCF": [
-        "C", "F"
-    ],
-    # Add more as needed
 }
 
 async def async_setup_entry(

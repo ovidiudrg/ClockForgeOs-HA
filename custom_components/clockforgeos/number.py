@@ -18,6 +18,8 @@ NUMERIC_KEYS = [
     "dayTimeHours", "dayTimeMinutes", "nightTimeHours", "nightTimeMinutes",
     "dateRepeatMin", "tempRepeatMin", "dateStart", "dateEnd", "tempStart", "tempEnd", "humidStart", "humidEnd", "pressureStart", "pressureEnd",
     "corrT0", "corrT1", "corrH0", "corrH1", "cathProtMin", "uiWidth"
+    "rgbBrightness",
+    "rgbAnimationSpeed",
 ]
 
 # Optionally, define min/max/step for each key
