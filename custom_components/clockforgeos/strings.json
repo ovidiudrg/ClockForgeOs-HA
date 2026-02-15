@@ -7,8 +7,7 @@
         "data": {
           "host": "Host or IP",
           "scan_interval": "Polling interval (seconds)",
-          "admin_username": "Admin username",
-          "admin_password": "Admin password (optional)"
+          "password": "Password"
         }
       }
     },
@@ -25,8 +24,7 @@
         "title": "ClockForgeOS options",
         "data": {
           "scan_interval": "Polling interval (seconds)",
-          "admin_username": "Admin username",
-          "admin_password": "Admin password"
+          "password": "Password"
         }
       }
     }

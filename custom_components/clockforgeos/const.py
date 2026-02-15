@@ -2,7 +2,6 @@ DOMAIN = "clockforgeos"
 PLATFORMS = ["sensor", "switch"]
 
 CONF_SCAN_INTERVAL = "scan_interval"
-CONF_ADMIN_PASSWORD = "admin_password"
 DEFAULT_SCAN_INTERVAL = 10
 
 DATA_COORDINATOR = "coordinator"

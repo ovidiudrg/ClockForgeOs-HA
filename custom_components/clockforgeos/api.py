@@ -16,45 +16,41 @@ class ClockForgeOSApi:
         self,
         session: ClientSession,
         host: str,
-        admin_password: str | None = None,
+        password: str | None = None,
     ) -> None:
         self._session = session
         self._base = f"http://{host}"
-        self._admin_password = admin_password
+        self._password = password
 
     def _auth_payload(self) -> dict[str, str]:
-        if not self._admin_password:
+        if not self._password:
             return {}
         return {
-            "password": self._admin_password,
-            "admin_password": self._admin_password,
-            "adminPassword": self._admin_password,
-            "pass": self._admin_password,
-            "pwd": self._admin_password,
+            "password": self._password,
+            "pass": self._password,
+            "pwd": self._password,
         }
 
     def _auth_query(self) -> dict[str, str]:
-        if not self._admin_password:
+        if not self._password:
             return {}
         return {
-            "password": self._admin_password,
-            "admin_password": self._admin_password,
-            "adminPassword": self._admin_password,
-            "pass": self._admin_password,
-            "pwd": self._admin_password,
+            "password": self._password,
+            "pass": self._password,
+            "pwd": self._password,
         }
 
     def _basic_auth(self) -> BasicAuth | None:
-        if not self._admin_password:
+        if not self._password:
             return None
-        # Some firmware may require a username, but if not, use empty string
-        return BasicAuth("", self._admin_password)
+        # Use empty string for username, only password
+        return BasicAuth("", self._password)
 
     def _auth_headers(self) -> dict[str, str]:
-        if not self._admin_password:
+        if not self._password:
             return {}
         return {
-            "X-Admin-Password": self._admin_password,
+            "X-Password": self._password,
         }
 
     async def _get_json(self, path: str) -> dict[str, Any]:
