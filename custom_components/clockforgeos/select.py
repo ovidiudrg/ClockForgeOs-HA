@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -84,4 +86,6 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
             await self.coordinator.api.save_setting(self._key, payload)
         except ClockForgeOSApiError as err:
             raise HomeAssistantError(f"Failed to set {self._key}: {err}") from err
+        # Firmware caches /getCurrentInfos for ~1s; refresh after cache window.
+        await asyncio.sleep(1.2)
         await self.coordinator.async_request_refresh()
