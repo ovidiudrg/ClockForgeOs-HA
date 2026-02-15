@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ClockForgeOS">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#262626"/>
+      <stop offset="100%" stop-color="#0f0f0f"/>
+    </linearGradient>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff8b3d"/>
+      <stop offset="100%" stop-color="#d96025"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#g)"/>
+  <circle cx="32" cy="32" r="20" fill="none" stroke="#3a3a3a" stroke-width="4"/>
+  <path d="M41 18a18 18 0 1 0 0 28" fill="none" stroke="url(#a)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="8.8" fill="#141414" stroke="#606060" stroke-width="1.4"/>
+  <line x1="32" y1="32" x2="32" y2="26.8" stroke="#e3e3e3" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="32" y1="32" x2="35.8" y2="34.5" stroke="url(#a)" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="1.6" fill="#f0f0f0"/>
+  <circle cx="46" cy="32" r="3" fill="url(#a)"/>
+</svg>
