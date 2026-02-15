@@ -85,9 +85,9 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         await self._async_set_switch(False)
 
-        async def _async_set_switch(self, state: bool) -> None:
-            try:
-                await self.coordinator.api.save_setting(self._key, "true" if state else "false")
-            except ClockForgeOSApiError as err:
-                raise HomeAssistantError(f"Failed to set {self._key}: {err}") from err
-            await self.coordinator.async_request_refresh()
+    async def _async_set_switch(self, state: bool) -> None:
+        try:
+            await self.coordinator.api.save_setting(self._key, "true" if state else "false")
+        except ClockForgeOSApiError as err:
+            raise HomeAssistantError(f"Failed to set {self._key}: {err}") from err
+        await self.coordinator.async_request_refresh()
