@@ -1,5 +1,7 @@
 # ClockForgeOS for Home Assistant (HACS)
 
+![ClockForgeOS icon](assets/icon.svg)
+
 Custom integration for ClockForgeOS devices.
 
 ## Release
@@ -29,3 +31,5 @@ Your ClockForgeOS firmware should expose:
 ## Notes
 - This integration uses HTTP polling.
 - If auth is enabled on firmware endpoints, extend `api.py` with headers/token.
+- Icon asset used by this repo is `assets/icon.svg`.
+- For the icon to appear in Home Assistant/HACS UI, publish the same icon to Home Assistant brands for domain `clockforgeos`.
