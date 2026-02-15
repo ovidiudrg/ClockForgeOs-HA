@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-02-15
+- Improved `/saveSetting` authentication compatibility for devices returning `401 Unauthorized`.
+- Added fallback auth strategies for write operations (password fields, query params, and HTTP basic auth with `admin`).
+- Updated integration metadata to version `0.1.3`.
+
 ## 0.1.2 - 2026-02-15
 - Added optional `admin_password` setting in config flow and options flow.
 - Added password-aware `/saveSetting` payload to support protected write operations.
