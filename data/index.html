@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ClockForgeOS 1.0</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="site.css?v=20260213b">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20260215c">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=20260215c" sizes="any">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico?v=20260215c">
+    
+    <!-- Load UI CSS customizations early (before page renders) -->
+    <script>
+    (function(){
+        try {
+            var root = document.documentElement;
+            var uiWidth = localStorage.getItem('ui_width') || '100%';
+            if (window.innerWidth && window.innerWidth <= 768) {
+                uiWidth = '100%';
+            }
+            var uiBg = localStorage.getItem('ui_bg') || '#111111';
+            var uiPanel = localStorage.getItem('ui_panel') || '#161616';
+            var uiAccent = localStorage.getItem('ui_accent') || '#D96025';
+            var uiText = localStorage.getItem('ui_text') || '#DDDDDD';
+            
+            root.style.setProperty('--ui-width', uiWidth);
+            root.style.setProperty('--ui-bg', uiBg);
+            root.style.setProperty('--ui-panel', uiPanel);
+            root.style.setProperty('--ui-accent', uiAccent);
+            root.style.setProperty('--ui-text', uiText);
+        } catch(e) {}
+    })();
+    </script>
+    
+    <!-- Use a single, known-good jQuery build. Keep file mapping consistent with firmware. -->
+    <script src="jquery_360.js?v=20260213"></script>
+    <script src="page.js?v=20260213"></script>
+    <script src="js/ui-main-extras.js?v=20260213"></script>
+    <script src="js/ui-live-log.js?v=20260213"></script>
+    <script src="js/ui-debug.js?v=20260213"></script>
+    <script src="js/ui-customization.js?v=20260213"></script>
+    <script src="js/ui-system.js?v=20260213"></script>
+    <script src="js/ui-wifi-mqtt.js?v=20260213"></script>
+</head>
+
+<body>
+    <div id="info-popup">
+        <div id="popup-box" class="max-width">
+            <div id="popup-close-btn">X</div>
+            <h2></h2>
+            <div class="content"></div>
+        </div>
+    </div>
+    <div id="menu-holder">
+        <div class="floating-menu">
+            <div class="max-width">
+                <table id="menu">
+                    <tr></tr>
+                </table>
+                <div id="menuLockBadge" class="menu-lock-badge info info-small info-muted hidden">Locked: login required for full menu</div>
+            </div>
+        </div>        
+    </div>
+    <div class="content max-width">
+        <div class="form">
+			<div page="main" class="active">
+                <div class="header">
+					<br>
+					<div class="control-holder">
+						<span id="currentTime" class="info medium"></span></br>
+						<div id="displayStatusDetail" class="info info-subtle-top info-muted"></div>
+					</div>
+					<div class="control-holder temperature-holder">
+                        <label>Temperature</label>
+                        <span id="temperature" class="info medium"></span>
+                    </div>
+                    <div class="control-holder temperature-holder2">
+                        <label>Temperature-2</label>
+                        <span id="temperature2" class="info medium"></span>
+                    </div>
+                    <div class="control-holder humidity-holder">
+                        <label>Humidity</label>
+                        <span id="humidity" class="info medium"></span>
+                    </div>
+                    <div class="control-holder humidity-holder2">
+                        <label>Humidity-2</label>
+                        <span id="humidity2" class="info medium"></span>
+                    </div>
+                    <div class="control-holder pressure-holder">
+                        <label>Pressure</label>
+                        <span id="pressure" class="info medium"></span>
+                    </div>
+                    <div class="control-holder lux-holder">
+                        <label>Illuminance</label>
+                        <span id="lux" class="info medium"></span>
+                    </div>					
+					<div class="control-holder">
+                        <label>Telnet clients</label>
+                        <span id="telnetClients" class="info medium">0</span>
+                    </div>
+					
+                    <div class="control-holder">
+                        <label>Time Source</label>
+                        <span id="timeSource" class="info medium"></span>
+                    </div>
+					<div class="control-holder">
+                        <label>MQTT clients connected</label>
+                        <span id="mqttClients" class="info medium">0</span>
+                        <div id="mqttMainStatus" class="info mqtt-state-off info-subtle-top">Inactive</div>
+                    </div>
+					<br><br><br>
+
+                </div>
+            </div>
+
+            <!-- automation settings -->
+            <div page="automation">
+                <br>
+                <div class="control-holder control-full control-auto-height">
+                    <label class="page-section-title">Motion, Alarm &amp; AutoDim</label>
+                </div>
+
+                <div class="control-holder">
+                    <label>Wake on motion</label>
+                    <input id="wakeOnMotionEnabled" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="wakeOnMotionEnabled">off</span>
+                    <span class="switcher non-selectable" for="wakeOnMotionEnabled"></span>
+                    <span class="switcher-text right non-selectable" for="wakeOnMotionEnabled">on</span>
+                </div>
+
+                <div class="control-holder">
+                    <label>Wake after motion (sec)</label>
+                    <input type="number" id="tubesWakeSeconds" min="1" max="3600" step="1" class="input-compact">
+                </div>
+                <div class="control-holder">
+                    <label>Display Power</label>
+                    <input id="manualDisplayPower" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="manualDisplayPower">off</span>
+                    <span class="switcher non-selectable" for="manualDisplayPower"></span>
+                    <span class="switcher-text right non-selectable" for="manualDisplayPower">on</span>
+                </div>
+
+                <div class="control-holder">
+                    <label>Alarm</label>
+                    <input id="alarmEnable" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="alarmEnable">off</span>
+                    <span class="switcher non-selectable" for="alarmEnable"></span>
+                    <span class="switcher-text right non-selectable" for="alarmEnable">on</span>
+                </div>
+   
+                <div class="control-holder">
+                    <label for="alarmTime">Alarm Time</label>
+                    <div class="multiple-input">
+                        <select id="alarmTimeHours" class="number-select two-digit" min="0" max="23"></select>
+                        <span>:</span>
+                        <select id="alarmTimeMinutes" class="number-select two-digit" min="0" max="59" step="1"></select>
+                    </div>
+                </div>
+                
+                <div class="control-holder">
+                    <label for="alarmPeriod">Alarm End (sec)</label>
+                    <input type="range" min="1" max="240" class="slider" id="alarmPeriod">
+                </div>
+
+				<div class="control-holder">
+                    <label>Touch Short Press</label>
+                    <select id="touchShortAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Change</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+				<div class="control-holder">
+                    <label>Touch Double Press</label>
+                    <select id="touchDoubleAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Change</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+				<div class="control-holder">
+                    <label>Touch Long Press</label>
+                    <select id="touchLongAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Change</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+
+                <div class="control-holder gesture-holder hidden">
+                    <label>Gesture UP Action</label>
+                    <select id="gestureUpAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Next</option>
+                        <option value="5">Color Previous</option>
+                        <option value="3">Display OFF</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+                <div class="control-holder gesture-holder hidden">
+                    <label>Gesture DOWN Action</label>
+                    <select id="gestureDownAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Next</option>
+                        <option value="5">Color Previous</option>
+                        <option value="3">Display OFF</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+                <div class="control-holder gesture-holder hidden">
+                    <label>Gesture LEFT Action</label>
+                    <select id="gestureLeftAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Next</option>
+                        <option value="5">Color Previous</option>
+                        <option value="3">Display OFF</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+                <div class="control-holder gesture-holder hidden">
+                    <label>Gesture RIGHT Action</label>
+                    <select id="gestureRightAction">
+                        <option value="0">None</option>
+                        <option value="1">Alarm OFF</option>
+                        <option value="2">Color Next</option>
+                        <option value="5">Color Previous</option>
+                        <option value="3">Display OFF</option>
+                        <option value="4">Display Toggle</option>
+                    </select>
+                </div>
+			
+            </div>
+
+			<!-- display settings -->	
+            <div page="display" class="tube-holder">
+				<br>
+				<div class="control-holder lux-holder">
+                    <label>AutoDimmer</label>
+                    <input id="enableAutoDim" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableAutoDim">off</span>
+                    <span class="switcher non-selectable" for="enableAutoDim"></span>
+                    <span class="switcher-text right non-selectable" for="enableAutoDim">on</span>
+                </div> 
+                <div class="control-holder">
+                    <label>Manual Override</label>
+                    <input id="manualOverride" type="checkbox" class="switch two-side">
+                    <span class="switcher-text left non-selectable" for="manualOverride">DAY</span>
+                    <span class="switcher non-selectable" for="manualOverride"></span>
+                    <span class="switcher-text right non-selectable" for="manualOverride">NIGHT</span>
+                </div>
+    
+                <div class="control-holder wordclock-holder">
+                    <label>Display Mode</label>
+                    <input id="set12_24" type="checkbox" class="switch two-side">
+                    <span class="switcher-text left non-selectable" for="set12_24">12h</span>
+                    <span class="switcher non-selectable" for="set12_24"></span>
+                    <span class="switcher-text right non-selectable" for="set12_24">24h</span>
+                </div>
+                
+                <div class="control-holder wordclock-holder">
+                    <label>Zero Handling</label>
+                    <input id="showZero" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="showZero">Hide</span>
+                    <span class="switcher non-selectable" for="showZero"></span>
+                    <span class="switcher-text right non-selectable" for="showZero">Show</span>
+                </div>
+                
+                <div class="control-holder wordclock-holder">
+                    <label>Blinking Dots</label>
+                    <input id="enableBlink" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableBlink">off</span>
+                    <span class="switcher non-selectable" for="enableBlink"></span>
+                    <span class="switcher-text right non-selectable" for="enableBlink">on</span>
+                </div>
+                <div class="control-holder wordclock-holder">
+                    <label>Double Blink</label>
+                    <input id="enableDoubleBlink" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableDoubleBlink">off</span>
+                    <span class="switcher non-selectable" for="enableDoubleBlink"></span>
+                    <span class="switcher-text right non-selectable" for="enableDoubleBlink">on</span>
+                </div>				
+                <div class="control-holder">
+                    <label>Auto Day/Night</label>
+                    <input id="enableAutoShutoff" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableAutoShutoff">off</span>
+                    <span class="switcher non-selectable" for="enableAutoShutoff"></span>
+                    <span class="switcher-text right non-selectable" for="enableAutoShutoff">on</span>
+                </div>
+				<div class="control-holder">
+                    <label>Day</label>
+                    <div class="multiple-input">
+                        <select id="dayTimeHours" class="number-select two-digit" min="0" max="23"></select>
+                        <span>:</span>
+                        <select id="dayTimeMinutes" class="number-select two-digit" min="0" max="59" step="5"></select>
+                    </div>
+                </div>
+                <div class="control-holder">
+                    <label>Night</label>
+                    <div class="multiple-input">
+                        <select id="nightTimeHours" class="number-select two-digit" min="0" max="23"></select>
+                        <span>:</span>
+                        <select id="nightTimeMinutes" class="number-select two-digit" min="0" max="59" step="5"></select>
+                    </div>
+                </div>
+
+                <div class="control-holder">
+                    <label for="animMode">Animation Mode</label>
+					<select id="animMode">
+						<option value="0">Off</option>
+						<option value="1">1 Count Up</option>
+						<option value="2">2 Count Down</option>
+						<option value="3">3 Shift Right</option>
+						<option value="4">4 Shift Left</option>
+						<option value="5">5 Transition</option>
+                        <option value="7">Random 1-4,8,9</option>
+                            <option value="8">8 Slot Wave</option>
+                            <option value="9">9 Mid → Margin</option>
+					</select>
+                </div>
+				<div class="control-holder">
+                    <label>Day Brightness</label>
+                    <input type="range" min="1" class="slider" id="dayBright">
+                </div>
+                <div class="control-holder">
+                    <label>Night Brightness</label>
+                    <input type="range" min="0" class="slider" id="nightBright">
+                </div>            
+	
+                <div class="control-holder wordclock-holder">
+                    <label for="interval">Cathode Protect</label>
+                    <input type="range" min="0" max="60" class="slider" id="interval">
+                </div>
+				<div class="control-holder">
+                    <label for="dateMode">Date Format</label>
+                    <select id="dateMode">
+                        <option value="0">dd/mm/yyyy</option>
+                        <option value="1">mm/dd/yyyy</option>
+                        <option value="2">yyyy/mm/dd</option>
+                    </select>
+                </div>
+                <div class="control-holder control-full control-auto-height">
+                    <div class="separator"></div>
+                </div>
+                <div class="control-holder wordclock-holder">
+                    <label>Display Time/Date</label>
+                    <input id="enableTimeDisplay" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableTimeDisplay">off</span>
+                    <span class="switcher non-selectable" for="enableTimeDisplay"></span>
+                    <span class="switcher-text right non-selectable" for="enableTimeDisplay">on</span>
+                </div>	
+                <div class="control-holder temperature-holder">
+                    <label>Display Temperature</label>
+                    <input id="enableTempDisplay" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableTempDisplay">off</span>
+                    <span class="switcher non-selectable" for="enableTempDisplay"></span>
+                    <span class="switcher-text right non-selectable" for="enableTempDisplay">on</span>
+                </div>
+                <div class="control-holder humidity-holder">
+                    <label>Display Humidity</label>
+                    <input id="enableHumidDisplay" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enableHumidDisplay">off</span>
+                    <span class="switcher non-selectable" for="enableHumidDisplay"></span>
+                    <span class="switcher-text right non-selectable" for="enableHumidDisplay">on</span>
+                </div>
+                <div class="control-holder pressure-holder">
+                    <label>Display Pressure</label>
+                    <input id="enablePressDisplay" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="enablePressDisplay">off</span>
+                    <span class="switcher non-selectable" for="enablePressDisplay"></span>
+                    <span class="switcher-text right non-selectable" for="enablePressDisplay">on</span>
+                </div>
+
+                <div class="control-holder wordclock-holder">
+                    <label>Date Repeat (min)</label>
+                    <input type="range" min="0" max="10" class="slider" id="dateRepeatMin">
+                </div>			
+                <div class="control-holder temperature-holder">
+                    <label>Temp/H/P Repeat (min)</label>
+                    <input type="range" min="0" max="10" class="slider" id="tempRepeatMin">
+                </div>				
+                <div class="control-holder temperature-holder">
+                    <label>Temperature Format</label>
+                    <input id="tempCF" type="checkbox" class="switch two-side">
+                    <span class="switcher-text left non-selectable" for="tempCF">C</span>
+                    <span class="switcher non-selectable" for="tempCF"></span>
+                    <span class="switcher-text right non-selectable" for="tempCF">F</span>
+                </div>
+                <div class="control-holder wordclock-holder">
+                    <label>Date seconds</label>
+                    <div class="multiple-input">
+                        <select id="dateStart" class="number-select two-digit" min="0" max="59"></select>
+                        <span>-</span>
+                        <select id="dateEnd" class="number-select two-digit" min="0" max="59" step="1"></select>
+                    </div>
+                </div>	
+                <div class="control-holder temperature-holder">
+                    <label>Temperature seconds</label>
+                    <div class="multiple-input">
+                        <select id="tempStart" class="number-select two-digit" min="0" max="59"></select>
+                        <span>-</span>
+                        <select id="tempEnd" class="number-select two-digit" min="0" max="59" step="1"></select>
+                    </div>
+                </div>  
+                <div class="control-holder humidity-holder">
+                    <label>Humidity seconds</label>
+                    <div class="multiple-input">
+                        <select id="humidStart" class="number-select two-digit" min="0" max="59"></select>
+                        <span>-</span>
+                        <select id="humidEnd" class="number-select two-digit" min="0" max="59" step="1"></select>
+                    </div>
+                </div>
+                <div class="control-holder pressure-holder">
+                    <label>Pressure seconds</label>
+                    <div class="multiple-input">
+                        <select id="pressureStart" class="number-select two-digit" min="0" max="59"></select>
+                        <span>-</span>
+                        <select id="pressureEnd" class="number-select two-digit" min="0" max="59" step="1"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RGB settings -->
+            <div page="rgb" class="tube-holder">
+				<br>
+                <div class="control-holder rgb-holder">
+                    <label for="rgbEffect">RGB Effect</label>
+                    <select id="rgbEffect">
+                        <option value="0">OFF</option>
+                        <option value="1">Fixed Color</option>
+                        <option value="2">Rainbow Flow</option>
+                        <option value="3">Rainbow Stepper</option>
+                        <option value="4">Color Dimmer</option>
+                        <option value="5">Color Changer</option>
+                        <option value="6">Color FlowChanger</option>
+                        <option value="7">Color FlowChanger Random-1</option>
+                        <option value="8">Color FlowChanger Random-2</option>
+                        <option value="9">Color FlowChanger Random-3</option>
+                        <option value="10">Knight Rider's KITT</option>
+						<option value="11">HeartBeat</option>
+                    </select>
+                </div>
+                <div class="control-holder rgb-holder">
+                    <label>RGB Brightness</label>
+                    <input type="range" min="8" max="255" class="slider" id="rgbBrightness">
+                </div>
+                
+                <div class="control-holder" id="fixedColorRgbSection">
+                    <label>Fixed Color (RGB)</label>
+                    <div id="color-select-holder">
+                        <div>
+                            <input type="color" id="rgbFixPicker" value="#ffffff" class="rgb-picker-input">
+                            <div class="rgb-line rgb-line-first">
+                                <span class="rgb-channel-label">R</span>
+                                <input type="range" min="0" max="255" class="slider" id="rgbFixR">
+                                <span id="rgbFixRval" class="info rgb-value">255</span>
+                            </div>
+                            <div class="rgb-line">
+                                <span class="rgb-channel-label">G</span>
+                                <input type="range" min="0" max="255" class="slider" id="rgbFixG">
+                                <span id="rgbFixGval" class="info rgb-value">255</span>
+                            </div>
+                            <div class="rgb-line">
+                                <span class="rgb-channel-label">B</span>
+                                <input type="range" min="0" max="255" class="slider" id="rgbFixB">
+                                <span id="rgbFixBval" class="info rgb-value">255</span>
+                            </div>
+
+                            <div class="row-inline-wrap row-gap-10 row-top-10">
+                                <button type="button" class="btn" id="btnRgbFixDefault">White</button>
+                                <span class="info info-muted">Applies only when RGB Effect = Fixed Color</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+				<div class="control-holder">
+                    <label>Max LED (mA)</label>
+                    <input type="range" min="0" max="1000" class="slider" id="maxLedmA">
+                    <div class="info info-muted" id="maxLedCurrentInfo">Estimated LED current: --</div>
+                </div>
+                
+			
+                <div class="control-holder rgb-holder">
+                    <label>Direction</label>
+                    <input id="rgbDir" type="checkbox" class="switch two-side">
+                    <span class="switcher-text left non-selectable" for="rgbDir">left</span>
+                    <span class="switcher non-selectable" for="rgbDir"></span>
+                    <span class="switcher-text right non-selectable" for="rgbDir">right</span>
+                </div>
+                
+                <div class="control-holder">
+                    <label for="rgbSpeed">Animation Speed</label>
+                    <input type="range" min="220" max="255" class="slider" id="rgbSpeed">
+                </div>
+            </div>
+			<!-- WiFi settings -->			
+			<div page=wifi>
+				<br>
+                <div class="control-holder control-full control-auto-height">
+                    <label class="page-section-title">WiFi Connectivity</label>
+                </div>
+                <div class="control-holder">
+                    <label>WiFi SSID</label>
+                    <input type="text" id="wifiSsid">
+                    <button type="button" class="btn btn-top-gap" id="wifi-scan-btn">Scan WiFi</button>
+                </div>
+                <div class="control-holder">
+                    <label>WiFi Password</label>
+                    <input type="password" id="wifiPsw" autocomplete="current-password">
+                    <button type="button" class="btn btn-top-gap" id="wifi-connect-save-btn">Connect &amp; Save</button>
+                </div>
+				 <div class="control-holder">
+                    <div id="wifi-scan-results" class="wifi-scan-results"></div>
+                </div>
+				<div class="control-holder control-full control-auto-height mqtt-holder">
+                    <label class="page-section-title"></label>
+                </div>
+                <div class="control-holder">
+                    <label>AP SSID</label>
+                    <input type="text" id="ApSsid" autocomplete="off">
+                </div>
+                <div class="control-holder">
+                    <label>AP Password</label>
+                    <input type="password" id="ApPsw" autocomplete="new-password">
+                </div>	
+				<div class="control-holder">
+                    <label>WiFi Mode</label>
+                    <input id="wifiMode" type="checkbox" class="switch">
+                <span class="switcher-text left non-selectable" for="wifiMode">AP</span>
+                    <span class="switcher non-selectable" for="wifiMode"></span>
+                    <span class="switcher-text right non-selectable" for="wifiMode">Client</span>
+                </div>
+
+                <div class="control-holder control-full control-auto-height mqtt-holder">
+                    <label class="page-section-title">MQTT &amp; Integrations</label>
+                </div>
+			
+                <div class="control-holder mqtt-holder">
+                    <label>MQTT Address</label>
+                    <input type="text" id="mqttBrokerAddr">
+                </div>	
+                <div class="control-holder mqtt-holder">
+                    <label>MQTT User</label>
+                    <input type="text" id="mqttBrokerUser">
+                </div>	
+                <div class="control-holder mqtt-holder">
+                    <label>MQTT Password</label>
+                    <input type="password" id="mqttBrokerPsw" autocomplete="current-password">
+                </div>
+                <div class="control-holder mqtt-holder">
+                    <label>MQTT Refresh (sec)</label>
+                    <input type="range" min="10" max="100" class="slider" id="mqttBrokerRefresh">
+                </div>
+                <div class="control-holder mqtt-holder">
+                    <label>MQTT Enable</label>
+                    <input id="mqttEnable" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="mqttEnable">off</span>
+                    <span class="switcher non-selectable" for="mqttEnable"></span>
+                    <span class="switcher-text right non-selectable" for="mqttEnable">on</span>
+                </div>	
+                <!-- External MQTT Devices Config -->
+                <div class="control-holder mqtt-holder control-full mqtt-devices-card">
+                    <label class="label-strong">External MQTT Devices</label>
+                    <div id="mqttDevicesConfig"></div>
+                    <button type="button" class="btn btn-top-gap btn-220" id="addMqttDeviceBtn">Add Device</button>
+                    <span class="info info-muted info-small info-block">Configure up to 4 external MQTT devices.<br>Each device: Name, Topic filter, Sensor slot (0-5).</span>
+                </div>
+            </div>	
+			<div page="settings">
+			<br><br>
+            <div class="control-holder control-full control-auto-height">
+                <label class="page-section-title">Clock Features</label>
+            </div>
+            <div class="control-holder">
+                <label>Set manual date &amp; time</label>
+                <input type="datetime-local" id="manualDateTime" step="60" class="input-260">
+                <div class="inline-pair inline-pair-vertical row-top-10">
+                    <button type="button" class="btn btn-fill" id="btnSetManualDateTime">Set</button>
+                    <button type="button" class="btn btn-fill" id="btnSetBrowserDateTime">Browser Time</button>
+                </div>
+            </div>
+            <div class="control-holder">
+                <label>Time Zone</label>
+                <select id="utc_offset" class="number-select" min="-12" max="12" prefix="(UTC " suffix=":00)"></select>
+            </div>
+            <div class="control-holder">
+                <label title="Automatic daylight saving time">AUTO DST</label>
+                <input id="enableDST" type="checkbox" class="switch">
+                <span class="switcher-text left non-selectable" for="enableDST">off</span>
+                <span class="switcher non-selectable" for="enableDST"></span>
+                <span class="switcher-text right non-selectable" for="enableDST">on</span>
+            </div>
+            <div class="control-holder">
+                    <label>Ntp Server</label>
+                    <input type="text" id="NtpServer">
+            </div>			
+            <br>
+            </div>
+
+            <div page="service" hidden="true">
+			<br><br>
+            <div class="control-holder control-full control-auto-height">
+                <label class="page-section-title">Service &amp; Maintenance</label>
+            </div>
+            <!-- Sensor corrections -->
+				<div class="control-holder temperature-holder">
+                    <label>Temperature#1</label>
+                    <input type="range" min="-9" max="9" step="0.1" class="slider" id="corrT0">
+                </div>
+				<div class="control-holder temperature-holder2">
+                    <label>Temperature#2</label>
+                    <input type="range" min="-9" max="9" step="0.1" class="slider" id="corrT1">
+                </div>
+				<div class="control-holder humidity-holder">
+                    <label>Humidity#1</label>
+                    <input type="range" min="-35" max="35" step="0.1" class="slider" id="corrH0">
+                </div>	
+				<div class="control-holder humidity-holder2">
+                    <label>Humidity#2</label>
+                    <input type="range" min="-35" max="35" step="0.1" class="slider" id="corrH1">
+                </div>					
+				<div class="control-holder wordclock-holder">			
+                    <label>CathodeProtect (minutes)</label>
+                    <input type="range" min="1" max="60" step="1" class="slider" id="cathProtMin">
+                </div>				
+                <div class="control-holder">
+                    <label>Firmware Server</label>
+                    <input type="text" id="firmware">
+                </div>
+				<div class="control-holder">
+                    <label>Onboard LED</label>
+                    <input id="onboardLed" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="onboardLed">off</span>
+                    <span class="switcher non-selectable" for="onboardLed"></span>
+                    <span class="switcher-text right non-selectable" for="onboardLed">on</span>
+                </div>
+				<br><br><br>
+                <div class="control-holder">
+					<button id="cath-prot-btn" onclick="areYouSure('cathodeProtect')">Cathode Protect</button>
+					<button id="fw-update-btn" onclick="areYouSure('firmwareupdate')">Firmware Update</button>					
+                    <button id="restart-btn" onclick="areYouSure('reset')">Restart</button>
+					<button id="factory-reset-btn" onclick="areYouSure('factoryreset')">Factory Reset</button>
+					<button id="debug-toggle-btn" class="btn" type="button">Enable Debug</button>
+
+				</div>	
+              
+                                <div class="control-holder control-full control-auto-height">
+                                        <div class="card log-card">
+                                            <div class="card-title">Live Log</div>
+                                                <div class="row-inline row-gap-10 row-bottom-10">
+                                                <button id="log-clear-btn" class="btn" type="button">Clear</button>
+                                                <span id="log-status" class="log-status">Disconnected</span>
+                                            </div>
+                                                <pre id="live-log" class="live-log-output"></pre>
+                                        </div>
+                                </div>
+            </div>
+
+            <div page="ui">
+                <br><br>
+
+                <div class="control-holder">
+                    <label>UI - Page width</label>
+                    <select id="uiWidth">
+                        <option value="600">600 px</option>
+                        <option value="800">800 px</option>
+                        <option value="1000">1000 px</option>
+                        <option value="1200">1200 px</option>
+                        <option value="100%">Full width</option>
+                    </select>
+                </div>
+
+                <div class="control-holder">
+                    <label>UI - Background</label>
+                    <input type="color" id="uiBgColor" value="#111111">
+                </div>
+
+                <div class="control-holder">
+                    <label>UI - Panel/Card</label>
+                    <input type="color" id="uiPanelColor" value="#161616">
+                </div>
+
+                <div class="control-holder">
+                    <label>UI - Accent</label>
+                    <input type="color" id="uiAccentColor" value="#D96025">
+                </div>
+
+                <div class="control-holder">
+                    <label>UI - Text</label>
+                    <input type="color" id="uiTextColor" value="#DDDDDD">
+                </div>
+
+                <div class="row"></div>
+                <div class="control-holder control-full control-auto-height">
+                    <div class="ui-preview">
+                        <div class="ui-preview-title">Preview</div>
+                        <div class="ui-preview-row">
+                            <button type="button" class="btn">Button</button>
+                            <input type="text" value="Text input" class="input-260">
+                            <span class="info medium">Info</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div page="system">
+
+                <br><br>
+                <div class="system-top-grid">
+
+                    <div class="system-top-col">
+
+                        <div class="system-card">
+                            <label>System Info</label>
+                            <div class="info-panel">
+                                <div class="info-row"><span class="label">OS Version:</span><span id="sysOsVersion" class="value">--</span></div>
+                                <div class="info-row"><span class="label">FirmwareID:</span><span id="sysFirmwareID" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Chip:</span><span id="sysChipModel" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Tube driver:</span><span id="sysTubeDriver" class="value">--</span></div>
+                                <div class="info-row"><span class="label">CPU Temp:</span><span id="sysCpuTemp" class="value">--</span></div>
+                                <div class="info-row"><span class="label">CPU Cores:</span><span id="sysCpuCores" class="value">--</span></div>
+                                <div class="info-row"><span class="label">CPU Freq:</span><span id="sysCpuFreq" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Uptime:</span><span id="sysUptime" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Heap:</span><span id="sysHeap" class="value">--</span></div>
+                                <div class="info-row"><span class="label">MAXBRIGHTNESS:</span><span id="sysMaxBrightness" class="value">--</span></div>
+                                <div class="sys-chart-box">
+                                    <div class="sys-chart-head">
+                                        <span>CPU Temp Trend</span>
+                                        <span id="sysCpuTempTrendVal" class="sys-chart-val">--</span>
+                                    </div>
+                                    <canvas id="sysCpuTempChart" width="320" height="90"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="system-top-col">
+                        <div class="system-card">
+                            <label>System Network</label>
+                            <div class="info-panel">
+                                <div class="info-row"><span class="label">MAC:</span><span id="sysMacAddr" class="value mono-text">--</span></div>
+                                <div class="info-row"><span class="label">WiFi RSSI:</span><span id="sysWifiSignal" class="value">--</span></div>
+                                <div class="info-row"><span class="label">WiFi Status:</span><span id="sysWifiStatus" class="value">--</span></div>
+                                <div class="info-row"><span class="label">WiFi Switch:</span><span id="sysWifiSwitch" class="value">--</span></div>
+                                <div class="info-row"><span class="label">WiFi IP:</span><span id="sysWifiIP" class="value">--</span></div>
+                                <div class="info-row"><span class="label">MQTT Status:</span><span id="sysMqttStatus" class="value">--</span></div>
+                                <div class="sys-chart-box">
+                                    <div class="sys-chart-head">
+                                        <span>Network Bandwidth Trend</span>
+                                        <span id="sysNetBwTrendVal" class="sys-chart-val">--</span>
+                                    </div>
+                                    <canvas id="sysNetBwChart" width="320" height="90"></canvas>
+                                </div>
+                            </div>
+                        </div>
+						
+                        <div class="system-card system-card-stacked">
+                            <label>Sensors</label>
+                            <div class="info-panel">
+                                <div class="info-row"><span class="label">Physical sensors:</span><span id="sysPhysicalSensors" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Gesture sensor:</span><span id="sysGestureSensor" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Virtual/MQTT sensors:</span><span id="sysVirtualSensors" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Temperature sensors:</span><span id="sysTempSensors" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Humidity sensors:</span><span id="sysHumidSensors" class="value">--</span></div>
+                                <div class="info-row"><span class="label">Pressure sensors:</span><span id="sysPressSensors" class="value">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="system-top-col">
+                        <div class="system-card">
+                            <label>ESP32 Used Pins</label>
+                            <div class="info-panel" id="sysUsedPins"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-holder control-full control-auto-height">
+                    <label>HV5122 Pin Settings</label>
+                    <div class="info-panel" id="sysHV5122Pins"></div>
+                </div>
+                <br><br>
+                <div class="control-holder control-full control-auto-height">
+                    <button type="button" class="btn" id="sys-refresh-btn">Refresh System Info</button>
+                </div>
+            </div>
+
+        </div>
+            
+        
+
+<div class="separator"></div>
+        <div class="footer">
+            <div id="version" class="info" pagemenu="service"></div>
+        </div>
+    </div>
+    
+
+<script>
+(function(){
+  try{
+    var pages = document.querySelectorAll('[page]');
+    if(!pages || !pages.length) return;
+    var anyActive = document.querySelector('[page].active');
+    if(!anyActive){
+      pages[0].classList.add('active');
+    }
+  }catch(e){}
+})();
+</script>
+
+
+<script>
+(function(){
+  function add(msg){
+    try{
+      var d=document.createElement('div');
+      d.style.position='fixed';d.style.right='8px';d.style.bottom='8px';
+      d.style.zIndex='99999';d.style.padding='6px 10px';d.style.fontFamily='monospace';
+      d.style.fontSize='12px';d.style.background='rgba(0,0,0,0.55)';d.style.border='1px solid #555';
+      d.style.borderRadius='8px';d.style.color='#ddd';
+      d.textContent=msg;
+      document.body.appendChild(d);
+      setTimeout(function(){ if(d && d.parentNode){ d.parentNode.removeChild(d); } }, 6000);
+    }catch(e){}
+  }
+  add('UI loaded. jQuery=' + (!!window.jQuery));
+})();
+</script>
+
+</body>
+
+</html>
