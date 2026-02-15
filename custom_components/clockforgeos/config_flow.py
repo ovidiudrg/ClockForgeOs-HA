@@ -9,7 +9,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 
 from .api import ClockForgeOSApi, ClockForgeOSApiError
-from .const import CONF_ADMIN_PASSWORD, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_ADMIN_PASSWORD,
+    CONF_ADMIN_USERNAME,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 
 class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -22,11 +29,12 @@ class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
+            admin_username = (user_input.get(CONF_ADMIN_USERNAME) or DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
             admin_password = (user_input.get(CONF_ADMIN_PASSWORD) or "").strip()
             await self.async_set_unique_id(host)
             self._abort_if_unique_id_configured()
 
-            api = ClockForgeOSApi(async_get_clientsession(self.hass), host, admin_password or None)
+            api = ClockForgeOSApi(async_get_clientsession(self.hass), host, admin_username, admin_password or None)
             try:
                 await api.get_system_info()
             except ClockForgeOSApiError:
@@ -37,6 +45,7 @@ class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={CONF_HOST: host},
                     options={
                         CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
+                        CONF_ADMIN_USERNAME: admin_username,
                         CONF_ADMIN_PASSWORD: admin_password,
                     },
                 )
@@ -47,6 +56,7 @@ class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
                     vol.Coerce(int), vol.Range(min=3, max=300)
                 ),
+                vol.Optional(CONF_ADMIN_USERNAME, default=DEFAULT_ADMIN_USERNAME): str,
                 vol.Optional(CONF_ADMIN_PASSWORD, default=""): selector.TextSelector(
                     selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
                 ),
@@ -77,6 +87,10 @@ class ClockForgeOSOptionsFlow(config_entries.OptionsFlow):
                     default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 ): vol.All(vol.Coerce(int), vol.Range(min=3, max=300))
                 ,
+                vol.Optional(
+                    CONF_ADMIN_USERNAME,
+                    default=self.config_entry.options.get(CONF_ADMIN_USERNAME, DEFAULT_ADMIN_USERNAME),
+                ): str,
                 vol.Optional(
                     CONF_ADMIN_PASSWORD,
                     default=self.config_entry.options.get(CONF_ADMIN_PASSWORD, ""),

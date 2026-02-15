@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-02-15
+- Added explicit `admin_username` and `admin_password` fields in both setup and options flows.
+- Updated write authentication to use configured admin username for HTTP basic auth.
+- Updated integration metadata to version `0.1.4`.
+
 ## 0.1.3 - 2026-02-15
 - Improved `/saveSetting` authentication compatibility for devices returning `401 Unauthorized`.
 - Added fallback auth strategies for write operations (password fields, query params, and HTTP basic auth with `admin`).

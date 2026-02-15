@@ -9,8 +9,10 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
     CONF_ADMIN_PASSWORD,
+    CONF_ADMIN_USERNAME,
     CONF_SCAN_INTERVAL,
     DATA_COORDINATOR,
+    DEFAULT_ADMIN_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PLATFORMS,
@@ -22,11 +24,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ClockForgeOS from a config entry."""
     host = entry.data[CONF_HOST]
     scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    admin_username = (entry.options.get(CONF_ADMIN_USERNAME) or DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
     admin_password = (entry.options.get(CONF_ADMIN_PASSWORD) or "").strip() or None
 
     coordinator = ClockForgeOSCoordinator(
         hass=hass,
         host=host,
+        admin_username=admin_username,
         admin_password=admin_password,
         update_interval=timedelta(seconds=scan_interval),
     )
