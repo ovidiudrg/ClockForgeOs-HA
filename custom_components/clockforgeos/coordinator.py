@@ -35,9 +35,11 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             system_info = await self.api.get_system_info()
             current_info = await self.api.get_current_info()
+            config = await self.api.get_configuration()
             return {
                 "system_info": system_info,
                 "current_info": current_info,
+                "config": config,
             }
         except ClockForgeOSApiError as err:
             raise UpdateFailed(str(err)) from err

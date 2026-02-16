@@ -92,22 +92,22 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
     @property
     def available(self) -> bool:
         current_info = self.coordinator.data.get("current_info", {})
+        config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        rgb_raw = current_info.get("rgbEffect", system_info.get("rgbEffect"))
+        rgb_raw = current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
         if rgb_raw is None:
             return self._key != "rgbPalette"
         if str(rgb_raw) == "255":
             return False
-        if self._key == "rgbPalette":
-            return str(rgb_raw) == "1"
         return True
 
     @property
     def current_option(self) -> str | None:
         current_info = self.coordinator.data.get("current_info", {})
+        config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
         if self._key == "rgbEffect":
-            value = current_info.get("rgbEffect", system_info.get("rgbEffect"))
+            value = current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
             if value is None:
                 return None
             value_str = str(value)
@@ -117,9 +117,9 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
                 return value_str
             return None
         if self._key == "rgbPalette":
-            r = current_info.get("rgbFixR", system_info.get("rgbFixR"))
-            g = current_info.get("rgbFixG", system_info.get("rgbFixG"))
-            b = current_info.get("rgbFixB", system_info.get("rgbFixB"))
+            r = current_info.get("rgbFixR", config.get("rgbFixR", system_info.get("rgbFixR")))
+            g = current_info.get("rgbFixG", config.get("rgbFixG", system_info.get("rgbFixG")))
+            b = current_info.get("rgbFixB", config.get("rgbFixB", system_info.get("rgbFixB")))
             try:
                 rgb = (int(float(r)), int(float(g)), int(float(b)))
             except (TypeError, ValueError):

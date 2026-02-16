@@ -43,6 +43,37 @@ class ClockForgeOSApi:
         """Validate password by obtaining an auth token."""
         await self._ensure_token()
 
+    async def get_configuration(self) -> dict[str, Any]:
+        """Get full configuration (auth-protected on firmware)."""
+        if not self._password:
+            return {}
+        await self._ensure_token()
+        headers: dict[str, str] = {}
+        if self._token:
+            headers["X-Auth-Token"] = self._token
+
+        try:
+            async with self._session.get(
+                f"{self._base}/getConfiguration",
+                headers=headers,
+                timeout=10,
+            ) as response:
+                if response.status == 401 and self._password:
+                    await self._login()
+                    retry_headers = {"X-Auth-Token": self._token or ""}
+                    async with self._session.get(
+                        f"{self._base}/getConfiguration",
+                        headers=retry_headers,
+                        timeout=10,
+                    ) as retry_response:
+                        retry_response.raise_for_status()
+                        return await retry_response.json(content_type=None)
+                response.raise_for_status()
+                return await response.json(content_type=None)
+        except (ClientError, TimeoutError, ValueError):
+            # Keep integration functional even if this optional endpoint fails.
+            return {}
+
     async def _login(self) -> None:
         if not self._password:
             return
