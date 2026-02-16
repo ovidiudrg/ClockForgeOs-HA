@@ -161,7 +161,7 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
                 state = str(source.get(key)) not in ("0", "false", "False")
                 # After device reboot, transient defaults can report false before config settles.
                 if (
-                    and in_reboot_grace
+                    in_reboot_grace
                     and self._last_known_state is True
                     and state is False
                 ):

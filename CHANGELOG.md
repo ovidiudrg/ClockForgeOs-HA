@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.28 - 2026-02-16
+- Hotfix: fixed syntax error in `switch.py` that prevented integration platform import/setup.
+- Updated integration metadata to version `0.1.28`.
+
 ## 0.1.27 - 2026-02-16
 - Fixed config flow compatibility issue causing 500 errors on some Home Assistant builds.
 - Replaced password selector widget usage with plain string fields in setup/options flow.
