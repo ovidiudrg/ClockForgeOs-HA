@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from time import monotonic
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
@@ -23,6 +24,25 @@ BOOLEAN_SWITCH_KEYS = [
     "showHumidity",
     "showPressure",
 ]
+
+SWITCH_READ_ALIASES: dict[str, list[str]] = {
+    "displayPower": ["displayPower"],
+    "alarmEnable": ["alarmEnable"],
+    "showTimeDate": ["showTimeDate", "enableTimeDisplay"],
+    "showTemperature": ["showTemperature", "enableTempDisplay"],
+    "showHumidity": ["showHumidity", "enableHumidDisplay"],
+    "showPressure": ["showPressure", "enablePressDisplay"],
+}
+
+# For compatibility with older firmware variants that don't implement show* aliases.
+SWITCH_WRITE_KEY: dict[str, str] = {
+    "displayPower": "displayPower",
+    "alarmEnable": "alarmEnable",
+    "showTimeDate": "showTimeDate",
+    "showTemperature": "showTemperature",
+    "showHumidity": "showHumidity",
+    "showPressure": "showPressure",
+}
 
 SWITCH_ICONS = {
     "displayPower": "mdi:monitor",
@@ -66,6 +86,8 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_name = self._prettify_name(key)
         self._attr_icon = SWITCH_ICONS.get(key)
+        self._pending_state: bool | None = None
+        self._pending_until: float = 0.0
 
     @staticmethod
     def _prettify_name(key: str) -> str:
@@ -77,10 +99,30 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
+        # Keep locally written state shortly to bridge firmware cache/read lag.
+        if self._pending_state is not None and monotonic() < self._pending_until:
+            return self._pending_state
+
         current_info = self.coordinator.data.get("current_info", {})
         system_info = self.coordinator.data.get("system_info", {})
-        value = current_info.get(self._key, system_info.get(self._key, 0))
-        return str(value) not in ("0", "false", "False")
+
+        for key in SWITCH_READ_ALIASES.get(self._key, [self._key]):
+            if key in current_info:
+                return str(current_info.get(key)) not in ("0", "false", "False")
+            if key in system_info:
+                return str(system_info.get(key)) not in ("0", "false", "False")
+
+        # Derive display power from manualDisplayOff if direct key is absent.
+        if self._key == "displayPower":
+            if "manualDisplayOff" in current_info:
+                return str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
+            if "manualDisplayOff" in system_info:
+                return str(system_info.get("manualDisplayOff")) in ("0", "false", "False")
+
+        # Do not force OFF for unknown/missing keys; keep optimistic state if available.
+        if self._pending_state is not None:
+            return self._pending_state
+        return False
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._async_set_switch(True)
@@ -89,10 +131,29 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         await self._async_set_switch(False)
 
     async def _async_set_switch(self, state: bool) -> None:
+        self._pending_state = state
+        self._pending_until = monotonic() + 5.0
+        self.async_write_ha_state()
+
         try:
-            await self.coordinator.api.save_setting(self._key, "true" if state else "false")
+            write_key = SWITCH_WRITE_KEY.get(self._key, self._key)
+            await self.coordinator.api.save_setting(write_key, "true" if state else "false")
+            # Backward compatibility for older firmware variants.
+            if write_key == "showTimeDate":
+                await self.coordinator.api.save_setting("enableTimeDisplay", "true" if state else "false")
+            elif write_key == "showTemperature":
+                await self.coordinator.api.save_setting("enableTempDisplay", "true" if state else "false")
+            elif write_key == "showHumidity":
+                await self.coordinator.api.save_setting("enableHumidDisplay", "true" if state else "false")
+            elif write_key == "showPressure":
+                await self.coordinator.api.save_setting("enablePressDisplay", "true" if state else "false")
         except ClockForgeOSApiError as err:
+            self._pending_state = None
+            self._pending_until = 0.0
+            self.async_write_ha_state()
             raise HomeAssistantError(f"Failed to set {self._key}: {err}") from err
         # Firmware caches /getCurrentInfos for ~1s; refresh after cache window.
         await asyncio.sleep(1.2)
         await self.coordinator.async_request_refresh()
+        self._pending_state = None
+        self._pending_until = 0.0
