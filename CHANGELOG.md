@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 - 2026-02-16
+- Added 12-hour alarm controls in Home Assistant:
+  - `Alarm Hour` now displays and edits as `1-12` (instead of `0-23`).
+  - New `Alarm AM/PM` select to control meridiem.
+- Kept firmware compatibility by converting HA alarm hour changes to 24-hour values for `/saveSetting`.
+- Updated integration metadata to version `0.1.10`.
+
 ## 0.1.9 - 2026-02-16
 - Updated Home Assistant control rendering:
   - `Alarm Hour` and `Alarm Minute` now use numeric input boxes (not sliders).

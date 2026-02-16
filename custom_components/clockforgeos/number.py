@@ -88,7 +88,7 @@ NUMERIC_META = {
     "utc_offset": dict(min_value=-720, max_value=720, step=1),
     "tubesWakeSeconds": dict(min_value=0, max_value=3600, step=1),
     "interval": dict(min_value=1, max_value=3600, step=1),
-    "alarmTimeHours": dict(min_value=0, max_value=23, step=1),
+    "alarmTimeHours": dict(min_value=1, max_value=12, step=1),
     "alarmTimeMinutes": dict(min_value=0, max_value=59, step=1),
     "dayTimeHours": dict(min_value=0, max_value=23, step=1),
     "dayTimeMinutes": dict(min_value=0, max_value=59, step=1),
@@ -134,11 +134,32 @@ def _get_time_part(value: str | None, part: str) -> float | None:
         return None
 
 
+def _to_12_hour(hour_24: int) -> int:
+    hour = hour_24 % 24
+    if hour == 0:
+        return 12
+    if hour > 12:
+        return hour - 12
+    return hour
+
+
+def _alarm_hour_24(current_info: dict, system_info: dict, config: dict | None = None) -> int | None:
+    cfg = config or {}
+    raw = current_info.get("alarmTime", cfg.get("alarmTime", system_info.get("alarmTime")))
+    part = _get_time_part(raw, "h")
+    if part is None:
+        return None
+    return int(part)
+
+
 def _read_value_for_key(key: str, current_info: dict, system_info: dict, config: dict | None = None) -> float | None:
     cfg = config or {}
     # Firmware exposes HH:MM strings; map them to numeric entities.
     if key == "alarmTimeHours":
-        return _get_time_part(current_info.get("alarmTime", cfg.get("alarmTime", system_info.get("alarmTime"))), "h")
+        raw_hour = _alarm_hour_24(current_info, system_info, cfg)
+        if raw_hour is None:
+            return None
+        return float(_to_12_hour(raw_hour))
     if key == "alarmTimeMinutes":
         return _get_time_part(current_info.get("alarmTime", cfg.get("alarmTime", system_info.get("alarmTime"))), "m")
     if key == "dayTimeHours":
@@ -224,6 +245,24 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
             # Keep decimal precision for correction values; cast others to int.
             if self._key in {"corrT0", "corrT1", "corrH0", "corrH1"}:
                 payload = f"{value:.1f}"
+            elif self._key == "alarmTimeHours":
+                desired_12h = int(value)
+                if desired_12h < 1:
+                    desired_12h = 1
+                if desired_12h > 12:
+                    desired_12h = 12
+
+                current_info = self.coordinator.data.get("current_info", {})
+                system_info = self.coordinator.data.get("system_info", {})
+                config = self.coordinator.data.get("config", {})
+                current_24h = _alarm_hour_24(current_info, system_info, config)
+                is_pm = (current_24h or 0) >= 12
+
+                if desired_12h == 12:
+                    hour_24 = 12 if is_pm else 0
+                else:
+                    hour_24 = desired_12h + (12 if is_pm else 0)
+                payload = str(hour_24)
             else:
                 payload = str(int(value))
             await self.coordinator.api.save_setting(self._key, payload)

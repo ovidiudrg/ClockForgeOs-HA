@@ -5,7 +5,7 @@
 Custom integration for ClockForgeOS devices.
 
 ## Release
-- Current version: **0.1.9**
+- Current version: **0.1.10**
 - Changelog: `CHANGELOG.md`
 
 ## Features
@@ -16,7 +16,7 @@ Custom integration for ClockForgeOS devices.
 - Exposes control entities:
   - Switches: `displayPower`, `wakeOnMotionEnabled`, `alarmEnable`, `showTimeDate`, `showTemperature`, `showHumidity`, `showPressure`
   - Numbers: `rgbBrightness`, `rgbAnimationSpeed`, `tubesWakeSeconds`, `alarmTimeHours` (`Alarm Hour`), `alarmTimeMinutes` (`Alarm Minute`) (plus additional numeric firmware keys)
-  - Selects: `rgbEffect`, `rgbPalette`
+  - Selects: `rgbEffect`, `rgbPalette`, `alarmAmPm` (`Alarm AM/PM`)
   - Binary sensor: `Radar Motion`
 - Supports password-protected writes using firmware token auth (`/auth/login` + `X-Auth-Token`)
 
@@ -37,6 +37,7 @@ Your ClockForgeOS firmware should expose:
 ## Notes
 - This integration uses HTTP polling.
 - If your firmware requires auth for writes, set the device **password** when adding the integration (or in options later).
-- `Alarm Hour` and `Alarm Minute` are rendered as numeric input boxes in Home Assistant.
+- `Alarm Hour` and `Alarm Minute` are rendered as numeric input boxes in Home Assistant (12-hour format).
+- Use `Alarm AM/PM` to switch alarm meridiem.
 - Icon asset used by this repo is `assets/favicon.svg`.
 - For the icon to appear in Home Assistant/HACS UI, publish the same icon to Home Assistant brands for domain `clockforgeos`.
