@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.21 - 2026-02-16
+- Sensor cleanup and UI polish:
+  - removed additional noisy/internal diagnostic sensors from default exposure.
+  - added automatic cleanup for already-registered removed sensor entities.
+  - improved display labels and icons for key remaining sensors (time/date, WiFi IP/SSID, CPU, LED units).
+- Updated integration metadata to version `0.1.21`.
+
 ## 0.1.20 - 2026-02-16
 - Added automatic auth refresh on reboot detection:
   - detects reboot via `uptimeMinutes` reset/early-boot window.

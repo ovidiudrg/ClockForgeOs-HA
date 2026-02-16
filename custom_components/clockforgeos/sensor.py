@@ -31,6 +31,34 @@ SENSOR_EXCLUDE_KEYS = set([
     "wifiSwithcResult",
     "wifiSwtichTargetSSID",
     "dayNightIsNight",
+    # Additional noisy/internal diagnostics not useful as regular HA sensors
+    "chipModel",
+    "firmwareId",
+    "gateway",
+    "ipAddress",
+    "macAddress",
+    "maxDigits",
+    "physicalSensors",
+    "virtualSensors",
+    "installedSensors",
+    "usedPins",
+    "tubeDriver",
+    "humiditySensors",
+    "pressureSensors",
+    "temperatureSensors",
+    "gestureSensorPresent",
+    "heapProtection",
+    "cathProtRunning",
+    "ledAppliedBrightness",
+    "ledCurrentmA",
+    "ledLimitmA",
+    "maxBrightness",
+    "freeBytes",
+    "minFreeHeap",
+    "wifiIp",
+    "telnetClients",
+    "mqttClients",
+    "dayNightMode",
 ])
 
 OPTIONAL_SECONDARY_SENSOR_KEYS = {
@@ -47,6 +75,8 @@ SENSOR_ICONS = {
     "humidity1": "mdi:water-percent",
     "humidity2": "mdi:water-percent",
     "pressure": "mdi:gauge",
+    "pressure1": "mdi:gauge",
+    "pressure2": "mdi:gauge",
     "lux": "mdi:weather-sunny",
     "lx": "mdi:weather-sunny",
     "cpuTemp": "mdi:cpu-64-bit",
@@ -60,11 +90,30 @@ SENSOR_ICONS = {
     "wifiSignal": "mdi:wifi",
     "wifiStatus": "mdi:wifi",
     "wifiIP": "mdi:ip-network",
+    "ipAddress": "mdi:ip-network",
     "timeSource": "mdi:clock-outline",
+    "currentTime": "mdi:clock-digital",
+    "currentDate": "mdi:calendar",
     "wakeSecondsLeft": "mdi:run-fast",
     "tubesPower": "mdi:lightbulb-on",
     "rssi": "mdi:wifi",
     "mqttStatus": "mdi:lan",
+}
+
+SENSOR_DISPLAY_NAMES = {
+    "cpuFreqMHz": "CPU Frequency MHz",
+    "cpuTemp": "CPU Temperature",
+    "wifiIP": "WiFi IP",
+    "wifiIp": "WiFi IP",
+    "wifiSSID": "WiFi SSID",
+    "wifiSsid": "WiFi SSID",
+    "ledCurrentmA": "LED Current mA",
+    "ledLimitmA": "LED Limit mA",
+    "currentTime": "Current Time",
+    "currentDate": "Current Date",
+    "osVersion": "OS Version",
+    "macAddress": "MAC Address",
+    "rssi": "WiFi RSSI",
 }
 
 
@@ -125,7 +174,7 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = _prettify_name(key)
+        self._attr_name = SENSOR_DISPLAY_NAMES.get(key, _prettify_name(key))
         self._attr_icon = SENSOR_ICONS.get(key)
 
     @property
