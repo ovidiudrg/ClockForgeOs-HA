@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 - 2026-02-16
+- Updated Home Assistant control rendering:
+  - `Alarm Hour` and `Alarm Minute` now use numeric input boxes (not sliders).
+- Documentation refresh:
+  - README now reflects current entities, including `Radar Motion` binary sensor and RGB palette select.
+- Updated integration metadata to version `0.1.9`.
+
 ## 0.1.8 - 2026-02-16
 - Improved default Home Assistant UI clarity:
   - core number controls stay visible by default (`rgbBrightness`, `rgbAnimationSpeed`, `tubesWakeSeconds`, alarm timing/period).
