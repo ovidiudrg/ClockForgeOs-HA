@@ -30,6 +30,10 @@ class ClockForgeOSApi:
     def has_password(self) -> bool:
         return bool(self._password)
 
+    @property
+    def has_valid_token(self) -> bool:
+        return bool(self._token) and monotonic() < self._token_expires_at
+
     async def _get_json(self, path: str) -> dict[str, Any]:
         try:
             async with self._session.get(f"{self._base}{path}", timeout=10) as response:

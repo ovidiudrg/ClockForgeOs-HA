@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.20 - 2026-02-16
+- Added automatic auth refresh on reboot detection:
+  - detects reboot via `uptimeMinutes` reset/early-boot window.
+  - when password is configured and token is not valid, re-authenticates automatically and refreshes config.
+- Fixes the remaining case where settings only recovered after pressing a button.
+- Updated integration metadata to version `0.1.20`.
+
 ## 0.1.19 - 2026-02-16
 - Expanded sensor exclusion key coverage for reported variants:
   - added `dayNightIsNight`, `wifiSwitchRollbackSsid`, `wifiSwitchTargetSsid`.
