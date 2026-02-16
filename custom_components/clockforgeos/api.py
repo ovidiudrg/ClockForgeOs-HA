@@ -59,15 +59,9 @@ class ClockForgeOSApi:
                 timeout=10,
             ) as response:
                 if response.status == 401 and self._password:
-                    await self._login()
-                    retry_headers = {"X-Auth-Token": self._token or ""}
-                    async with self._session.get(
-                        f"{self._base}/getConfiguration",
-                        headers=retry_headers,
-                        timeout=10,
-                    ) as retry_response:
-                        retry_response.raise_for_status()
-                        return await retry_response.json(content_type=None)
+                    # Do not re-login here: firmware uses a single auth token and
+                    # re-login would invalidate the browser session repeatedly.
+                    return {}
                 response.raise_for_status()
                 return await response.json(content_type=None)
         except (ClientError, TimeoutError, ValueError):
