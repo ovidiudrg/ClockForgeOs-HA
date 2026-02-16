@@ -58,12 +58,10 @@ SELECT_KEYS = {
     "rgbEffect": list(RGB_EFFECT_LABELS.values()),
     "rgbPalette": [item[0] for item in RGB_FIXED_PALETTE],
     "alarmAmPm": ["AM", "PM"],
-    "alarmMinute": [f"{i:02d}" for i in range(60)],
 }
 
 SELECT_DISPLAY_NAMES = {
     "alarmAmPm": "Alarm AM/PM",
-    "alarmMinute": "Alarm Minute",
 }
 
 
@@ -105,15 +103,6 @@ def _read_alarm_hour_24(current_info: dict, config: dict, system_info: dict) -> 
     return parsed[0]
 
 
-def _read_alarm_minute(current_info: dict, config: dict, system_info: dict) -> int | None:
-    parsed = _parse_alarm_time(
-        current_info.get("alarmTime", config.get("alarmTime", system_info.get("alarmTime")))
-    )
-    if parsed is None:
-        return None
-    return parsed[1]
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -151,8 +140,6 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
         system_info = self.coordinator.data.get("system_info", {})
         if self._key == "alarmAmPm":
             return _read_alarm_hour_24(current_info, config, system_info) is not None
-        if self._key == "alarmMinute":
-            return _read_alarm_minute(current_info, config, system_info) is not None
         rgb_key = _normalize_effect_key(
             current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
         )
@@ -195,11 +182,6 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
             if hour_24 is None:
                 return None
             return "PM" if hour_24 >= 12 else "AM"
-        if self._key == "alarmMinute":
-            minute = _read_alarm_minute(current_info, config, system_info)
-            if minute is None:
-                return None
-            return f"{minute:02d}"
         value = current_info.get(self._key, system_info.get(self._key))
         return str(value) if value is not None else None
 
@@ -232,14 +214,6 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
                 elif option == "PM" and hour_24 < 12:
                     hour_24 += 12
                 await self.coordinator.api.save_setting("alarmTimeHours", str(hour_24))
-            elif self._key == "alarmMinute":
-                try:
-                    minute = int(option)
-                except ValueError as err:
-                    raise HomeAssistantError(f"Invalid alarm minute option: {option}") from err
-                if minute < 0 or minute > 59:
-                    raise HomeAssistantError(f"Invalid alarm minute option: {option}")
-                await self.coordinator.api.save_setting("alarmTimeMinutes", str(minute))
             else:
                 await self.coordinator.api.save_setting(self._key, option)
         except ClockForgeOSApiError as err:

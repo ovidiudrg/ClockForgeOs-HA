@@ -21,7 +21,7 @@ from .coordinator import ClockForgeOSCoordinator
 def _is_legacy_alarm_minute_entity(entity: er.RegistryEntry) -> bool:
     if entity.platform != DOMAIN:
         return False
-    if entity.domain == "number" and entity.unique_id.endswith("_alarmTimeMinutes"):
+    if entity.domain == "select" and entity.unique_id.endswith("_alarmMinute"):
         return True
     return False
 

@@ -20,6 +20,7 @@ CORE_NUMERIC_KEYS = [
     "tubesWakeSeconds",
     "alarmPeriod",
     "alarmTimeHours",
+    "alarmTimeMinutes",
 ]
 
 ADVANCED_NUMERIC_KEYS = [
@@ -58,14 +59,17 @@ NUMERIC_KEYS = CORE_NUMERIC_KEYS + ADVANCED_NUMERIC_KEYS
 
 NUMBER_DISPLAY_NAMES = {
     "alarmTimeHours": "Alarm Hour",
+    "alarmTimeMinutes": "Alarm Minute",
 }
 
 BOX_MODE_KEYS = {
     "alarmTimeHours",
+    "alarmTimeMinutes",
 }
 
 INT_DISPLAY_KEYS = {
     "alarmTimeHours",
+    "alarmTimeMinutes",
     "tubesWakeSeconds",
 }
 

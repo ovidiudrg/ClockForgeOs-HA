@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 - 2026-02-16
+- Switched `Alarm Minute` back to number-box control to match `Alarm Hour` UI style.
+- Kept alarm numeric entities integer-only to avoid trailing decimal formatting like `.0`.
+- Added migration cleanup for legacy `alarmMinute` select entity in HA entity registry.
+- Updated integration metadata to version `0.1.13`.
+
 ## 0.1.12 - 2026-02-16
 - Added automatic entity-registry cleanup for legacy alarm minute entity migration:
   - Removes old `number` entity (`alarmTimeMinutes`) on setup so the new two-digit minute select is used.
