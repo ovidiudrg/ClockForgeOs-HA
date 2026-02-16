@@ -44,13 +44,10 @@ class ClockForgeOSApi:
         await self._ensure_token()
 
     async def get_configuration(self) -> dict[str, Any]:
-        """Get full configuration when a token is already available.
-
-        Important: this method never triggers login, to avoid invalidating
-        active browser UI sessions on firmware that supports only one token.
-        """
-        if not self._password or not self._token or monotonic() >= self._token_expires_at:
+        """Get full configuration (auth-protected on firmware)."""
+        if not self._password:
             return {}
+        await self._ensure_token()
         headers: dict[str, str] = {}
         if self._token:
             headers["X-Auth-Token"] = self._token
@@ -62,9 +59,8 @@ class ClockForgeOSApi:
                 timeout=10,
             ) as response:
                 if response.status == 401 and self._password:
-                    # Token became invalid. Do not re-login from polling path.
-                    self._token = None
-                    self._token_expires_at = 0.0
+                    # Do not re-login here: firmware uses a single auth token and
+                    # re-login would invalidate the browser session repeatedly.
                     return {}
                 response.raise_for_status()
                 return await response.json(content_type=None)
