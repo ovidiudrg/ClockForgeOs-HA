@@ -18,6 +18,7 @@ from .entity import ClockForgeOSEntity
 
 BOOLEAN_SWITCH_KEYS = [
     "displayPower",
+    "wakeOnMotionEnabled",
     "alarmEnable",
     "showTimeDate",
     "showTemperature",
@@ -27,6 +28,7 @@ BOOLEAN_SWITCH_KEYS = [
 
 SWITCH_READ_ALIASES: dict[str, list[str]] = {
     "displayPower": ["displayPower"],
+    "wakeOnMotionEnabled": ["wakeOnMotionEnabled"],
     "alarmEnable": ["alarmEnable"],
     "showTimeDate": ["showTimeDate", "enableTimeDisplay"],
     "showTemperature": ["showTemperature", "enableTempDisplay"],
@@ -37,6 +39,7 @@ SWITCH_READ_ALIASES: dict[str, list[str]] = {
 # For compatibility with older firmware variants that don't implement show* aliases.
 SWITCH_WRITE_KEY: dict[str, str] = {
     "displayPower": "displayPower",
+    "wakeOnMotionEnabled": "wakeOnMotionEnabled",
     "alarmEnable": "alarmEnable",
     "showTimeDate": "showTimeDate",
     "showTemperature": "showTemperature",
@@ -88,6 +91,7 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         self._attr_icon = SWITCH_ICONS.get(key)
         self._pending_state: bool | None = None
         self._pending_until: float = 0.0
+        self._last_known_state: bool | None = None
 
     @staticmethod
     def _prettify_name(key: str) -> str:
@@ -108,18 +112,28 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
 
         for key in SWITCH_READ_ALIASES.get(self._key, [self._key]):
             if key in current_info:
-                return str(current_info.get(key)) not in ("0", "false", "False")
+                state = str(current_info.get(key)) not in ("0", "false", "False")
+                self._last_known_state = state
+                return state
             if key in system_info:
-                return str(system_info.get(key)) not in ("0", "false", "False")
+                state = str(system_info.get(key)) not in ("0", "false", "False")
+                self._last_known_state = state
+                return state
 
         # Derive display power from manualDisplayOff if direct key is absent.
         if self._key == "displayPower":
             if "manualDisplayOff" in current_info:
-                return str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
+                state = str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
+                self._last_known_state = state
+                return state
             if "manualDisplayOff" in system_info:
-                return str(system_info.get("manualDisplayOff")) in ("0", "false", "False")
+                state = str(system_info.get("manualDisplayOff")) in ("0", "false", "False")
+                self._last_known_state = state
+                return state
 
-        # Do not force OFF for unknown/missing keys; keep optimistic state if available.
+        # Do not force OFF for unknown/missing keys.
+        if self._last_known_state is not None:
+            return self._last_known_state
         if self._pending_state is not None:
             return self._pending_state
         return False
@@ -133,6 +147,7 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
     async def _async_set_switch(self, state: bool) -> None:
         self._pending_state = state
         self._pending_until = monotonic() + 5.0
+        self._last_known_state = state
         self.async_write_ha_state()
 
         try:
