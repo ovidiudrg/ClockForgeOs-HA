@@ -6,7 +6,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers import selector
 
 from .api import ClockForgeOSApi, ClockForgeOSApiError
 from .const import (
@@ -53,9 +52,7 @@ class ClockForgeOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
                     vol.Coerce(int), vol.Range(min=3, max=300)
                 ),
-                vol.Optional("password", default=""): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-                ),
+                vol.Optional("password", default=""): str,
             }
         )
 
@@ -85,9 +82,7 @@ class ClockForgeOSOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "password",
                     default=self.config_entry.options.get("password", ""),
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-                ),
+                ): str,
             }
         )
 

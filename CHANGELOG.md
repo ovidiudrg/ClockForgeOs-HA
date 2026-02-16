@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.27 - 2026-02-16
+- Fixed config flow compatibility issue causing 500 errors on some Home Assistant builds.
+- Replaced password selector widget usage with plain string fields in setup/options flow.
+- Updated integration metadata to version `0.1.27`.
+
 ## 0.1.26 - 2026-02-16
 - Improved setup resilience:
   - integration no longer hard-fails config entry setup when initial refresh fails temporarily.
