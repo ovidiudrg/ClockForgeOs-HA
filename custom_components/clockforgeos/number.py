@@ -62,6 +62,11 @@ NUMBER_DISPLAY_NAMES = {
     "alarmTimeMinutes": "Alarm Minute",
 }
 
+BOX_MODE_KEYS = {
+    "alarmTimeHours",
+    "alarmTimeMinutes",
+}
+
 NUMERIC_META = {
     "dayBright": dict(min_value=0, max_value=255, step=1),
     "nightBright": dict(min_value=0, max_value=255, step=1),
@@ -191,7 +196,7 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
         self._attr_native_min_value = meta["min_value"]
         self._attr_native_max_value = meta["max_value"]
         self._attr_native_step = meta["step"]
-        self._attr_mode = NumberMode.AUTO
+        self._attr_mode = NumberMode.BOX if key in BOX_MODE_KEYS else NumberMode.AUTO
         # Keep the default UI clean; advanced tuning can be enabled manually.
         if advanced:
             self._attr_entity_registry_enabled_default = False
