@@ -68,10 +68,6 @@ SWITCH_ICONS = {
     "enableRadar": "mdi:radar",
 }
 
-SWITCH_DISPLAY_NAMES = {
-    "wakeOnMotionEnabled": "Wake On Motion",
-}
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -91,7 +87,7 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = SWITCH_DISPLAY_NAMES.get(key, self._prettify_name(key))
+        self._attr_name = self._prettify_name(key)
         self._attr_icon = SWITCH_ICONS.get(key)
         self._pending_state: bool | None = None
         self._pending_until: float = 0.0

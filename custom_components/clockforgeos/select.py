@@ -59,18 +59,6 @@ SELECT_KEYS = {
     "rgbPalette": [item[0] for item in RGB_FIXED_PALETTE],
 }
 
-
-def _normalize_effect_key(value: object) -> str | None:
-    if value is None:
-        return None
-    value_str = str(value).strip()
-    if value_str in RGB_EFFECT_LABELS:
-        return value_str
-    try:
-        return str(int(float(value_str)))
-    except (TypeError, ValueError):
-        return None
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -106,12 +94,10 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
         current_info = self.coordinator.data.get("current_info", {})
         config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        rgb_key = _normalize_effect_key(
-            current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
-        )
-        if rgb_key is None:
+        rgb_raw = current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
+        if rgb_raw is None:
             return self._key != "rgbPalette"
-        if rgb_key == "255":
+        if str(rgb_raw) == "255":
             return False
         return True
 
@@ -124,10 +110,9 @@ class ClockForgeOSSettingSelect(ClockForgeOSEntity, SelectEntity):
             value = current_info.get("rgbEffect", config.get("rgbEffect", system_info.get("rgbEffect")))
             if value is None:
                 return None
-            value_key = _normalize_effect_key(value)
-            if value_key in RGB_EFFECT_LABELS:
-                return RGB_EFFECT_LABELS[value_key]
-            value_str = str(value).strip()
+            value_str = str(value)
+            if value_str in RGB_EFFECT_LABELS:
+                return RGB_EFFECT_LABELS[value_str]
             if value_str in self._options:
                 return value_str
             return None
