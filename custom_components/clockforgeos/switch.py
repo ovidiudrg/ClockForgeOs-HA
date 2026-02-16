@@ -72,8 +72,6 @@ SWITCH_DISPLAY_NAMES = {
     "wakeOnMotionEnabled": "Wake On Motion",
 }
 
-LAST_KNOWN_TTL_SEC = 120.0
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -98,7 +96,6 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         self._pending_state: bool | None = None
         self._pending_until: float = 0.0
         self._last_known_state: bool | None = None
-        self._last_known_at: float = 0.0
 
     @staticmethod
     def _prettify_name(key: str) -> str:
@@ -123,17 +120,14 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
             if key in current_info:
                 state = str(current_info.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
-                self._last_known_at = now
                 return state
             if key in config:
                 state = str(config.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
-                self._last_known_at = now
                 return state
             if key in system_info:
                 state = str(system_info.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
-                self._last_known_at = now
                 return state
 
         # Derive display power from manualDisplayOff if direct key is absent.
@@ -141,16 +135,14 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
             if "manualDisplayOff" in current_info:
                 state = str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
                 self._last_known_state = state
-                self._last_known_at = now
                 return state
             if "manualDisplayOff" in system_info:
                 state = str(system_info.get("manualDisplayOff")) in ("0", "false", "False")
                 self._last_known_state = state
-                self._last_known_at = now
                 return state
 
-        # Avoid bouncing to OFF on temporary key omissions, but expire stale cache.
-        if self._last_known_state is not None and (now - self._last_known_at) <= LAST_KNOWN_TTL_SEC:
+        # Avoid bouncing to OFF while device is rebooting and keys are temporarily missing.
+        if self._last_known_state is not None:
             return self._last_known_state
         if self._pending_state is not None:
             return self._pending_state
@@ -166,7 +158,6 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         self._pending_state = state
         self._pending_until = monotonic() + 8.0
         self._last_known_state = state
-        self._last_known_at = monotonic()
         self.async_write_ha_state()
 
         try:

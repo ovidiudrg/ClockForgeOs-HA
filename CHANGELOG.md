@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.16 - 2026-02-16
+- Improved switch state stability during clock reboot:
+  - Switch entities now keep last known state when firmware keys are temporarily missing.
+  - Prevents HA controls from briefly reverting to default OFF until a manual action.
+- Updated integration metadata to version `0.1.16`.
+
 ## 0.1.15 - 2026-02-16
 - Removed additional non-actionable/internal fields from sensor entities:
   - `dayNight`, `isNight`, `eepromSize`, `eepromUsed`, `hv5122Pins`,
