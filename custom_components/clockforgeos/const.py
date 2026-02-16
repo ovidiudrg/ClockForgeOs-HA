@@ -1,5 +1,5 @@
 DOMAIN = "clockforgeos"
-PLATFORMS = ["sensor", "switch", "number", "select"]
+PLATFORMS = ["sensor", "switch", "number", "select", "time"]
 
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 10
