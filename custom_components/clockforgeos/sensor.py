@@ -14,6 +14,12 @@ SENSOR_EXCLUDE_KEYS = set([
     "displayPower", "onboardLed", "enableBlink", "enableDST", "enableAutoShutoff", "tubesSleep", "wakeOnMotionEnabled", "debugEnabled", "manualDisplayOff", "alarmEnable", "mqttEnable", "enableTimeDisplay", "enableTempDisplay", "enableHumidDisplay", "enablePressDisplay", "enableDoubleBlink", "enableRadar", "cathodeProtect"
 ])
 
+OPTIONAL_SECONDARY_SENSOR_KEYS = {
+    "temperature2",
+    "humidity2",
+    "pressure2",
+}
+
 SENSOR_ICONS = {
     "temperature": "mdi:thermometer",
     "temperature1": "mdi:thermometer",
@@ -42,6 +48,26 @@ SENSOR_ICONS = {
     "mqttStatus": "mdi:lan",
 }
 
+
+def _is_invalid_secondary_value(key: str, value: object) -> bool:
+    if key not in OPTIONAL_SECONDARY_SENSOR_KEYS:
+        return False
+    try:
+        return float(value) == 255.0
+    except (TypeError, ValueError):
+        return False
+
+
+def _read_sensor_value(key: str, current_info: dict, config: dict, system_info: dict):
+    for data in (current_info, config, system_info):
+        if key in data:
+            value = data[key]
+            if _is_invalid_secondary_value(key, value):
+                continue
+            return value
+    return None
+
+
 def _prettify_name(key: str) -> str:
     import re
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1 \2', key)
@@ -60,7 +86,15 @@ async def async_setup_entry(
     config = coordinator.data.get("config", {})
     all_keys = set(system_info) | set(current_info) | set(config)
     # Exclude keys that are handled by other platforms
-    sensor_keys = sorted(k for k in all_keys if k not in SENSOR_EXCLUDE_KEYS)
+    sensor_keys = sorted(
+        k
+        for k in all_keys
+        if k not in SENSOR_EXCLUDE_KEYS
+        and (
+            k not in OPTIONAL_SECONDARY_SENSOR_KEYS
+            or _read_sensor_value(k, current_info, config, system_info) is not None
+        )
+    )
     sensors = [
         ClockForgeOSDynamicSensor(coordinator, entry, key)
         for key in sensor_keys
@@ -81,7 +115,4 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         current_info = self.coordinator.data.get("current_info", {})
         config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        for d in (current_info, config, system_info):
-            if self._key in d:
-                return d[self._key]
-        return None
+        return _read_sensor_value(self._key, current_info, config, system_info)

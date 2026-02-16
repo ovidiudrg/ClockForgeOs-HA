@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.14 - 2026-02-16
+- Improved optional secondary sensor handling:
+  - `temperature2`, `humidity2`, and `pressure2` are treated as invalid when reported as `255`/`255.0`.
+  - These sensors are now exposed only when a valid value exists.
+- Updated integration metadata to version `0.1.14`.
+
 ## 0.1.13 - 2026-02-16
 - Switched `Alarm Minute` back to number-box control to match `Alarm Hour` UI style.
 - Kept alarm numeric entities integer-only to avoid trailing decimal formatting like `.0`.
