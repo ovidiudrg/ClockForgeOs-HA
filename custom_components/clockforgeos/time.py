@@ -35,8 +35,9 @@ class ClockForgeOSAlarmTime(ClockForgeOSEntity, TimeEntity):
     @property
     def native_value(self) -> time | None:
         current_info = self.coordinator.data.get("current_info", {})
+        config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        raw = current_info.get("alarmTime", system_info.get("alarmTime"))
+        raw = current_info.get("alarmTime", config.get("alarmTime", system_info.get("alarmTime")))
         return _parse_hhmm(str(raw) if raw is not None else None)
 
     async def async_set_value(self, value: time) -> None:
