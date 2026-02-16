@@ -25,6 +25,7 @@ class ClockForgeOSApi:
         self._token: str | None = None
         self._token_expires_at: float = 0.0
         self._last_configuration: dict[str, Any] = {}
+        self._needs_reauth: bool = False
 
     @property
     def has_password(self) -> bool:
@@ -33,6 +34,10 @@ class ClockForgeOSApi:
     @property
     def has_valid_token(self) -> bool:
         return bool(self._token) and monotonic() < self._token_expires_at
+
+    @property
+    def needs_reauth(self) -> bool:
+        return self._needs_reauth
 
     async def _get_json(self, path: str) -> dict[str, Any]:
         try:
@@ -75,11 +80,13 @@ class ClockForgeOSApi:
                     # Token no longer valid. Do not re-login from polling path.
                     self._token = None
                     self._token_expires_at = 0.0
+                    self._needs_reauth = True
                     return self._last_configuration
                 response.raise_for_status()
                 payload = await response.json(content_type=None)
                 if isinstance(payload, dict):
                     self._last_configuration = payload
+                    self._needs_reauth = False
                     return payload
                 return self._last_configuration
         except (ClientError, TimeoutError, ValueError):
@@ -108,6 +115,7 @@ class ClockForgeOSApi:
         ttl_sec = int(payload.get("ttlSec", 1800))
         self._token = str(token)
         self._token_expires_at = monotonic() + max(1, ttl_sec - 5)
+        self._needs_reauth = False
 
     async def _ensure_token(self) -> None:
         if not self._password:

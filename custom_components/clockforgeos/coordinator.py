@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from time import monotonic
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -31,6 +32,7 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.host = host
         self.api = ClockForgeOSApi(async_get_clientsession(hass), host, password)
         self._last_uptime_minutes: float | None = None
+        self._last_reauth_attempt_at: float = 0.0
 
     @staticmethod
     def _extract_uptime_minutes(current_info: dict[str, Any], system_info: dict[str, Any]) -> float | None:
@@ -77,6 +79,17 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except ClockForgeOSApiError:
                     pass
             config = await self.api.get_configuration()
+            # If firmware rejected token (common after reboot), perform one
+            # targeted re-auth and retry config fetch in the same poll cycle.
+            if self.api.has_password and self.api.needs_reauth:
+                now = monotonic()
+                if (now - self._last_reauth_attempt_at) >= 10.0:
+                    self._last_reauth_attempt_at = now
+                    try:
+                        await self.api.authenticate()
+                        config = await self.api.get_configuration()
+                    except ClockForgeOSApiError:
+                        pass
             self._last_uptime_minutes = uptime_minutes
             return {
                 "system_info": system_info,

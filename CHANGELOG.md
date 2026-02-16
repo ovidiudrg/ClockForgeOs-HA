@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.23 - 2026-02-16
+- Fixed remaining post-reboot auth desync behavior:
+  - when `/getConfiguration` returns unauthorized, integration now marks re-auth needed.
+  - coordinator performs targeted re-auth with cooldown and retries config fetch in the same poll cycle.
+- Eliminates the need to press a switch to force settings sync after reboot/token desync.
+- Updated integration metadata to version `0.1.23`.
+
 ## 0.1.22 - 2026-02-16
 - Fixed automatic switch status recovery regression:
   - configuration switches now prefer persisted config values over transient boot-time `current_info` defaults.
