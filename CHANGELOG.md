@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.24 - 2026-02-16
+- Hardened reboot-state protection for switches:
+  - increased reboot grace window to 8 minutes.
+  - transient `false` values during reboot grace no longer overwrite a previously known `true` state, regardless of source (`config` or `current_info`).
+- Updated integration metadata to version `0.1.24`.
+
 ## 0.1.23 - 2026-02-16
 - Fixed remaining post-reboot auth desync behavior:
   - when `/getConfiguration` returns unauthorized, integration now marks re-auth needed.

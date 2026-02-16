@@ -72,7 +72,7 @@ SWITCH_DISPLAY_NAMES = {
     "wakeOnMotionEnabled": "Wake On Motion",
 }
 
-REBOOT_GRACE_MINUTES = 3.0
+REBOOT_GRACE_MINUTES = 8.0
 
 
 def _parse_uptime_minutes(current_info: dict, system_info: dict) -> float | None:
@@ -161,7 +161,6 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
                 state = str(source.get(key)) not in ("0", "false", "False")
                 # After device reboot, transient defaults can report false before config settles.
                 if (
-                    source_name == "current_info"
                     and in_reboot_grace
                     and self._last_known_state is True
                     and state is False
