@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 - 2026-02-16
+- Updated alarm minute control rendering in Home Assistant:
+  - `Alarm Minute` is now a select with fixed two-digit options (`00` to `59`).
+  - This avoids single-digit display like `0` and keeps consistent `00` formatting.
+- Updated integration metadata to version `0.1.11`.
+
 ## 0.1.10 - 2026-02-16
 - Added 12-hour alarm controls in Home Assistant:
   - `Alarm Hour` now displays and edits as `1-12` (instead of `0-23`).
