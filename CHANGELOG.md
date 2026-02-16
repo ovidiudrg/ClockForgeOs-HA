@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.17 - 2026-02-16
+- Added reboot grace handling for switch states:
+  - During first 3 minutes after device reboot (`uptimeMinutes`), transient `false` values do not overwrite previously known `true` switch states.
+  - Prevents post-reboot state flicker/reset in HA until stable payloads return.
+- Updated integration metadata to version `0.1.17`.
+
 ## 0.1.16 - 2026-02-16
 - Improved switch state stability during clock reboot:
   - Switch entities now keep last known state when firmware keys are temporarily missing.

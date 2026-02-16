@@ -72,6 +72,28 @@ SWITCH_DISPLAY_NAMES = {
     "wakeOnMotionEnabled": "Wake On Motion",
 }
 
+REBOOT_GRACE_MINUTES = 3.0
+
+
+def _parse_uptime_minutes(current_info: dict, system_info: dict) -> float | None:
+    for src in (current_info, system_info):
+        raw = src.get("uptimeMinutes")
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _is_in_reboot_grace(current_info: dict, system_info: dict) -> bool:
+    uptime_minutes = _parse_uptime_minutes(current_info, system_info)
+    if uptime_minutes is None:
+        return False
+    return uptime_minutes <= REBOOT_GRACE_MINUTES
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -115,10 +137,14 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         current_info = self.coordinator.data.get("current_info", {})
         config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
+        in_reboot_grace = _is_in_reboot_grace(current_info, system_info)
 
         for key in SWITCH_READ_ALIASES.get(self._key, [self._key]):
             if key in current_info:
                 state = str(current_info.get(key)) not in ("0", "false", "False")
+                # After device reboot, transient defaults can report false before config settles.
+                if in_reboot_grace and self._last_known_state is True and state is False:
+                    return True
                 self._last_known_state = state
                 return state
             if key in config:
@@ -134,6 +160,8 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         if self._key == "displayPower":
             if "manualDisplayOff" in current_info:
                 state = str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
+                if in_reboot_grace and self._last_known_state is True and state is False:
+                    return True
                 self._last_known_state = state
                 return state
             if "manualDisplayOff" in system_info:
