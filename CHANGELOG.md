@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 - 2026-02-16
+- Improved default Home Assistant UI clarity:
+  - core number controls stay visible by default (`rgbBrightness`, `rgbAnimationSpeed`, `tubesWakeSeconds`, alarm timing/period).
+  - advanced tuning numbers are now disabled by default to reduce clutter/noisy cards.
+- Fixed number entity creation to only include keys that are currently available on the device payloads.
+- Updated integration metadata to version `0.1.8`.
+
 ## 0.1.7 - 2026-02-16
 - Stabilized auth/session behavior to reduce web UI password churn:
   - `get_configuration` now uses passive token behavior and never logs in from polling.

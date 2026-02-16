@@ -14,24 +14,27 @@ from .coordinator import ClockForgeOSCoordinator
 from .entity import ClockForgeOSEntity
 
 # Numeric keys accepted by firmware /saveSetting.
-NUMERIC_KEYS = [
+CORE_NUMERIC_KEYS = [
+    "rgbBrightness",
+    "rgbAnimationSpeed",
+    "tubesWakeSeconds",
+    "alarmPeriod",
+    "alarmTimeHours",
+    "alarmTimeMinutes",
+]
+
+ADVANCED_NUMERIC_KEYS = [
     "dayBright",
     "nightBright",
     "radarTimeout",
     "maxLedmA",
-    "rgbBrightness",
     "rgbFixR",
     "rgbFixG",
     "rgbFixB",
     "rgbSpeed",
-    "rgbAnimationSpeed",
     "rgbMinBrightness",
     "utc_offset",
-    "tubesWakeSeconds",
     "interval",
-    "alarmTimeHours",
-    "alarmTimeMinutes",
-    "alarmPeriod",
     "dayTimeHours",
     "dayTimeMinutes",
     "nightTimeHours",
@@ -52,6 +55,7 @@ NUMERIC_KEYS = [
     "corrH1",
     "cathProtMin",
 ]
+NUMERIC_KEYS = CORE_NUMERIC_KEYS + ADVANCED_NUMERIC_KEYS
 
 NUMERIC_META = {
     "dayBright": dict(min_value=0, max_value=255, step=1),
@@ -145,21 +149,35 @@ def _read_value_for_key(key: str, current_info: dict, system_info: dict, config:
         return None
 
 
+def _is_key_available(key: str, current_info: dict, system_info: dict, config: dict) -> bool:
+    return _read_value_for_key(key, current_info, system_info, config) is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    current_info = coordinator.data.get("current_info", {})
+    system_info = coordinator.data.get("system_info", {})
+    config = coordinator.data.get("config", {})
+
     numbers = [
-        ClockForgeOSSettingNumber(coordinator, entry, key)
+        ClockForgeOSSettingNumber(
+            coordinator,
+            entry,
+            key,
+            advanced=(key in ADVANCED_NUMERIC_KEYS),
+        )
         for key in NUMERIC_KEYS
+        if _is_key_available(key, current_info, system_info, config)
     ]
     async_add_entities(numbers)
 
 
 class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
-    def __init__(self, coordinator: ClockForgeOSCoordinator, entry: ConfigEntry, key: str) -> None:
+    def __init__(self, coordinator: ClockForgeOSCoordinator, entry: ConfigEntry, key: str, advanced: bool) -> None:
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
@@ -169,6 +187,9 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
         self._attr_native_max_value = meta["max_value"]
         self._attr_native_step = meta["step"]
         self._attr_mode = NumberMode.AUTO
+        # Keep the default UI clean; advanced tuning can be enabled manually.
+        if advanced:
+            self._attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self) -> float | None:
@@ -176,10 +197,6 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
         system_info = self.coordinator.data.get("system_info", {})
         config = self.coordinator.data.get("config", {})
         return _read_value_for_key(self._key, current_info, system_info, config)
-
-    @property
-    def available(self) -> bool:
-        return self.native_value is not None
 
     async def async_set_native_value(self, value: float) -> None:
         try:
