@@ -48,6 +48,7 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
+            now = monotonic()
             was_available = self.last_update_success
             system_info = await self.api.get_system_info()
             current_info = await self.api.get_current_info()
@@ -60,6 +61,19 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # On reconnect (after downtime), refresh auth once so config can be
             # pulled automatically without waiting for a write action.
             if not was_available and self.api.has_password:
+                try:
+                    await self.api.authenticate()
+                    self._last_reauth_attempt_at = now
+                except ClockForgeOSApiError:
+                    pass
+            # If token is missing/expired, retry auth periodically so state can
+            # recover without requiring a manual write action.
+            if (
+                self.api.has_password
+                and not self.api.has_valid_token
+                and (now - self._last_reauth_attempt_at) >= 20.0
+            ):
+                self._last_reauth_attempt_at = now
                 try:
                     await self.api.authenticate()
                 except ClockForgeOSApiError:
@@ -82,7 +96,6 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # If firmware rejected token (common after reboot), perform one
             # targeted re-auth and retry config fetch in the same poll cycle.
             if self.api.has_password and self.api.needs_reauth:
-                now = monotonic()
                 if (now - self._last_reauth_attempt_at) >= 10.0:
                     self._last_reauth_attempt_at = now
                     try:

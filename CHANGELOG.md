@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.25 - 2026-02-16
+- Added periodic re-auth retry when password is configured but token is missing/expired.
+- This closes a gap where state could remain stale until a manual write if no 401-triggered re-auth path occurred.
+- Updated integration metadata to version `0.1.25`.
+
 ## 0.1.24 - 2026-02-16
 - Hardened reboot-state protection for switches:
   - increased reboot grace window to 8 minutes.
