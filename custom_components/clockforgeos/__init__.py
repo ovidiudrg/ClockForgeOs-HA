@@ -17,6 +17,35 @@ from .const import (
 )
 from .coordinator import ClockForgeOSCoordinator
 
+REMOVED_SENSOR_KEYS = {
+    "dayNight",
+    "isNight",
+    "dayNightIsNight",
+    "eepromSize",
+    "eepromUsed",
+    "hv5122Pins",
+    "largestFreeBlock",
+    "totalBytes",
+    "usedBytes",
+    "wifiSwitchResult",
+    "wifiSwitchRollbackRunning",
+    "wifiSwitchRollbackSSID",
+    "wifiSwitchRollbackSsid",
+    "wifiSwitchTargetSSID",
+    "wifiSwitchTargetSsid",
+    "wifiSwithcResult",
+    "wifiSwtichTargetSSID",
+}
+
+
+def _unique_id_key(entry: ConfigEntry, entity: er.RegistryEntry) -> str | None:
+    if not entity.unique_id:
+        return None
+    prefix = f"{entry.entry_id}_"
+    if not entity.unique_id.startswith(prefix):
+        return None
+    return entity.unique_id[len(prefix):]
+
 
 def _is_legacy_alarm_minute_entity(entity: er.RegistryEntry) -> bool:
     if entity.platform != DOMAIN:
@@ -26,11 +55,20 @@ def _is_legacy_alarm_minute_entity(entity: er.RegistryEntry) -> bool:
     return False
 
 
+def _is_removed_sensor_entity(entry: ConfigEntry, entity: er.RegistryEntry) -> bool:
+    if entity.platform != DOMAIN or entity.domain != "sensor":
+        return False
+    key = _unique_id_key(entry, entity)
+    if key is None:
+        return False
+    return key in REMOVED_SENSOR_KEYS
+
+
 async def _async_cleanup_legacy_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
     registry = er.async_get(hass)
     entries = er.async_entries_for_config_entry(registry, entry.entry_id)
     for entity in entries:
-        if _is_legacy_alarm_minute_entity(entity):
+        if _is_legacy_alarm_minute_entity(entity) or _is_removed_sensor_entity(entry, entity):
             registry.async_remove(entity.entity_id)
 
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.19 - 2026-02-16
+- Expanded sensor exclusion key coverage for reported variants:
+  - added `dayNightIsNight`, `wifiSwitchRollbackSsid`, `wifiSwitchTargetSsid`.
+- Added automatic cleanup of already-registered removed sensor entities in HA entity registry.
+- Updated integration metadata to version `0.1.19`.
+
 ## 0.1.18 - 2026-02-16
 - Improved automatic state recovery after clock reconnect:
   - On reconnect, integration performs a one-time auth refresh (when password is set) and pulls config automatically.

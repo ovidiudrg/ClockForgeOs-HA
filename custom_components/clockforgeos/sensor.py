@@ -24,10 +24,13 @@ SENSOR_EXCLUDE_KEYS = set([
     "wifiSwitchResult",
     "wifiSwitchRollbackRunning",
     "wifiSwitchRollbackSSID",
+    "wifiSwitchRollbackSsid",
     "wifiSwitchTargetSSID",
+    "wifiSwitchTargetSsid",
     # Common firmware spelling variants/typos
     "wifiSwithcResult",
     "wifiSwtichTargetSSID",
+    "dayNightIsNight",
 ])
 
 OPTIONAL_SECONDARY_SENSOR_KEYS = {
