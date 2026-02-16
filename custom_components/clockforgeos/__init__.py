@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_SCAN_INTERVAL,
@@ -15,6 +16,22 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import ClockForgeOSCoordinator
+
+
+def _is_legacy_alarm_minute_entity(entity: er.RegistryEntry) -> bool:
+    if entity.platform != DOMAIN:
+        return False
+    if entity.domain == "number" and entity.unique_id.endswith("_alarmTimeMinutes"):
+        return True
+    return False
+
+
+async def _async_cleanup_legacy_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    registry = er.async_get(hass)
+    entries = er.async_entries_for_config_entry(registry, entry.entry_id)
+    for entity in entries:
+        if _is_legacy_alarm_minute_entity(entity):
+            registry.async_remove(entity.entity_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -35,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         raise ConfigEntryNotReady(f"Unable to connect to ClockForgeOS at {host}: {err}") from err
 
+    await _async_cleanup_legacy_entities(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

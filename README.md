@@ -5,7 +5,7 @@
 Custom integration for ClockForgeOS devices.
 
 ## Release
-- Current version: **0.1.11**
+- Current version: **0.1.12**
 - Changelog: `CHANGELOG.md`
 
 ## Features

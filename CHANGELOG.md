@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12 - 2026-02-16
+- Added automatic entity-registry cleanup for legacy alarm minute entity migration:
+  - Removes old `number` entity (`alarmTimeMinutes`) on setup so the new two-digit minute select is used.
+- Updated integration metadata to version `0.1.12`.
+
 ## 0.1.11 - 2026-02-16
 - Updated alarm minute control rendering in Home Assistant:
   - `Alarm Minute` is now a select with fixed two-digit options (`00` to `59`).
