@@ -57,6 +57,11 @@ ADVANCED_NUMERIC_KEYS = [
 ]
 NUMERIC_KEYS = CORE_NUMERIC_KEYS + ADVANCED_NUMERIC_KEYS
 
+NUMBER_DISPLAY_NAMES = {
+    "alarmTimeHours": "Alarm Hour",
+    "alarmTimeMinutes": "Alarm Minute",
+}
+
 NUMERIC_META = {
     "dayBright": dict(min_value=0, max_value=255, step=1),
     "nightBright": dict(min_value=0, max_value=255, step=1),
@@ -171,7 +176,7 @@ async def async_setup_entry(
             advanced=(key in ADVANCED_NUMERIC_KEYS),
         )
         for key in NUMERIC_KEYS
-        if _is_key_available(key, current_info, system_info, config)
+        if (key in CORE_NUMERIC_KEYS) or _is_key_available(key, current_info, system_info, config)
     ]
     async_add_entities(numbers)
 
@@ -181,7 +186,7 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = _prettify_name(key)
+        self._attr_name = NUMBER_DISPLAY_NAMES.get(key, _prettify_name(key))
         meta = get_numeric_meta(key)
         self._attr_native_min_value = meta["min_value"]
         self._attr_native_max_value = meta["max_value"]
