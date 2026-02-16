@@ -67,6 +67,12 @@ BOX_MODE_KEYS = {
     "alarmTimeMinutes",
 }
 
+INT_DISPLAY_KEYS = {
+    "alarmTimeHours",
+    "alarmTimeMinutes",
+    "tubesWakeSeconds",
+}
+
 NUMERIC_META = {
     "dayBright": dict(min_value=0, max_value=255, step=1),
     "nightBright": dict(min_value=0, max_value=255, step=1),
@@ -206,7 +212,12 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
         current_info = self.coordinator.data.get("current_info", {})
         system_info = self.coordinator.data.get("system_info", {})
         config = self.coordinator.data.get("config", {})
-        return _read_value_for_key(self._key, current_info, system_info, config)
+        value = _read_value_for_key(self._key, current_info, system_info, config)
+        if value is None:
+            return None
+        if self._key in INT_DISPLAY_KEYS:
+            return int(value)
+        return value
 
     async def async_set_native_value(self, value: float) -> None:
         try:
