@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.18 - 2026-02-16
+- Improved automatic state recovery after clock reconnect:
+  - On reconnect, integration performs a one-time auth refresh (when password is set) and pulls config automatically.
+  - Config endpoint now keeps last known good payload as fallback during token expiry/unavailable windows.
+- This removes the need to press a HA button to force state refresh after reboot.
+- Updated integration metadata to version `0.1.18`.
+
 ## 0.1.17 - 2026-02-16
 - Added reboot grace handling for switch states:
   - During first 3 minutes after device reboot (`uptimeMinutes`), transient `false` values do not overwrite previously known `true` switch states.

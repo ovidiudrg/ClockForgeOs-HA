@@ -33,8 +33,16 @@ class ClockForgeOSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
+            was_available = self.last_update_success
             system_info = await self.api.get_system_info()
             current_info = await self.api.get_current_info()
+            # On reconnect (after downtime), refresh auth once so config can be
+            # pulled automatically without waiting for a write action.
+            if not was_available and self.api.has_password:
+                try:
+                    await self.api.authenticate()
+                except ClockForgeOSApiError:
+                    pass
             config = await self.api.get_configuration()
             return {
                 "system_info": system_info,

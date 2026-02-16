@@ -24,6 +24,11 @@ class ClockForgeOSApi:
         self._password = password
         self._token: str | None = None
         self._token_expires_at: float = 0.0
+        self._last_configuration: dict[str, Any] = {}
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self._password)
 
     async def _get_json(self, path: str) -> dict[str, Any]:
         try:
@@ -50,10 +55,8 @@ class ClockForgeOSApi:
         token if one is already available, to avoid token churn on firmware
         builds that effectively allow a single active web session token.
         """
-        if not self._password:
-            return {}
-        if not self._token or monotonic() >= self._token_expires_at:
-            return {}
+        if self._password and (not self._token or monotonic() >= self._token_expires_at):
+            return self._last_configuration
         headers: dict[str, str] = {}
         if self._token:
             headers["X-Auth-Token"] = self._token
@@ -68,12 +71,16 @@ class ClockForgeOSApi:
                     # Token no longer valid. Do not re-login from polling path.
                     self._token = None
                     self._token_expires_at = 0.0
-                    return {}
+                    return self._last_configuration
                 response.raise_for_status()
-                return await response.json(content_type=None)
+                payload = await response.json(content_type=None)
+                if isinstance(payload, dict):
+                    self._last_configuration = payload
+                    return payload
+                return self._last_configuration
         except (ClientError, TimeoutError, ValueError):
             # Keep integration functional even if this optional endpoint fails.
-            return {}
+            return self._last_configuration
 
     async def _login(self) -> None:
         if not self._password:
