@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
@@ -16,6 +16,8 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import ClockForgeOSCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 REMOVED_SENSOR_KEYS = {
     "dayNight",
@@ -115,7 +117,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
-        raise ConfigEntryNotReady(f"Unable to connect to ClockForgeOS at {host}: {err}") from err
+        _LOGGER.warning(
+            "Initial refresh failed for ClockForgeOS at %s, continuing setup and retrying in background: %s",
+            host,
+            err,
+        )
+        coordinator.data = {"system_info": {}, "current_info": {}, "config": {}}
 
     await _async_cleanup_legacy_entities(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {DATA_COORDINATOR: coordinator}

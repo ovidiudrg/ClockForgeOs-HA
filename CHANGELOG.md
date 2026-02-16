@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.26 - 2026-02-16
+- Improved setup resilience:
+  - integration no longer hard-fails config entry setup when initial refresh fails temporarily.
+  - setup continues with empty data and coordinator retries in background.
+- Helps avoid `Failed to set up` during transient reboot/auth/network windows.
+- Updated integration metadata to version `0.1.26`.
+
 ## 0.1.25 - 2026-02-16
 - Added periodic re-auth retry when password is configured but token is missing/expired.
 - This closes a gap where state could remain stale until a manual write if no 401-triggered re-auth path occurred.
