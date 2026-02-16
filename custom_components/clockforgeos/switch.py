@@ -112,11 +112,16 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
             return self._pending_state
 
         current_info = self.coordinator.data.get("current_info", {})
+        config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
 
         for key in SWITCH_READ_ALIASES.get(self._key, [self._key]):
             if key in current_info:
                 state = str(current_info.get(key)) not in ("0", "false", "False")
+                self._last_known_state = state
+                return state
+            if key in config:
+                state = str(config.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
                 return state
             if key in system_info:
