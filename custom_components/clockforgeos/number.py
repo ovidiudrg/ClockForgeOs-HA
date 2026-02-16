@@ -114,35 +114,35 @@ def _get_time_part(value: str | None, part: str) -> float | None:
         return None
 
 
-def _read_value_for_key(key: str, current_info: dict, system_info: dict) -> float | None:
+def _read_value_for_key(key: str, current_info: dict, system_info: dict, config: dict | None = None) -> float | None:
+    cfg = config or {}
     # Firmware exposes HH:MM strings; map them to numeric entities.
     if key == "alarmTimeHours":
-        return _get_time_part(current_info.get("alarmTime", system_info.get("alarmTime")), "h")
+        return _get_time_part(current_info.get("alarmTime", cfg.get("alarmTime", system_info.get("alarmTime"))), "h")
     if key == "alarmTimeMinutes":
-        return _get_time_part(current_info.get("alarmTime", system_info.get("alarmTime")), "m")
+        return _get_time_part(current_info.get("alarmTime", cfg.get("alarmTime", system_info.get("alarmTime"))), "m")
     if key == "dayTimeHours":
-        return _get_time_part(current_info.get("dayTime", system_info.get("dayTime")), "h")
+        return _get_time_part(current_info.get("dayTime", cfg.get("dayTime", system_info.get("dayTime"))), "h")
     if key == "dayTimeMinutes":
-        return _get_time_part(current_info.get("dayTime", system_info.get("dayTime")), "m")
+        return _get_time_part(current_info.get("dayTime", cfg.get("dayTime", system_info.get("dayTime"))), "m")
     if key == "nightTimeHours":
-        return _get_time_part(current_info.get("nightTime", system_info.get("nightTime")), "h")
+        return _get_time_part(current_info.get("nightTime", cfg.get("nightTime", system_info.get("nightTime"))), "h")
     if key == "nightTimeMinutes":
-        return _get_time_part(current_info.get("nightTime", system_info.get("nightTime")), "m")
+        return _get_time_part(current_info.get("nightTime", cfg.get("nightTime", system_info.get("nightTime"))), "m")
 
     # Alias: firmware may report rgbSpeed while UI key is rgbAnimationSpeed.
     if key == "rgbAnimationSpeed":
-        raw = current_info.get("rgbAnimationSpeed", current_info.get("rgbSpeed", system_info.get("rgbAnimationSpeed", system_info.get("rgbSpeed"))))
+        raw = current_info.get(
+            "rgbAnimationSpeed",
+            current_info.get("rgbSpeed", cfg.get("rgbAnimationSpeed", cfg.get("rgbSpeed", system_info.get("rgbAnimationSpeed", system_info.get("rgbSpeed"))))),
+        )
     else:
-        raw = current_info.get(key, system_info.get(key))
+        raw = current_info.get(key, cfg.get(key, system_info.get(key)))
 
     try:
         return float(raw)
     except (TypeError, ValueError):
         return None
-
-
-def _is_key_available(key: str, current_info: dict, system_info: dict) -> bool:
-    return _read_value_for_key(key, current_info, system_info) is not None
 
 
 async def async_setup_entry(
@@ -151,13 +151,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    current_info = coordinator.data.get("current_info", {})
-    system_info = coordinator.data.get("system_info", {})
-
     numbers = [
         ClockForgeOSSettingNumber(coordinator, entry, key)
         for key in NUMERIC_KEYS
-        if _is_key_available(key, current_info, system_info)
     ]
     async_add_entities(numbers)
 
@@ -178,7 +174,12 @@ class ClockForgeOSSettingNumber(ClockForgeOSEntity, NumberEntity):
     def native_value(self) -> float | None:
         current_info = self.coordinator.data.get("current_info", {})
         system_info = self.coordinator.data.get("system_info", {})
-        return _read_value_for_key(self._key, current_info, system_info)
+        config = self.coordinator.data.get("config", {})
+        return _read_value_for_key(self._key, current_info, system_info, config)
+
+    @property
+    def available(self) -> bool:
+        return self.native_value is not None
 
     async def async_set_native_value(self, value: float) -> None:
         try:

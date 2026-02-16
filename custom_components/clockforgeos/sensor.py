@@ -26,13 +26,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    # Gather all keys from system_info, current_info, and public_config
+    # Gather all keys from system_info, current_info, and config
     system_info = coordinator.data.get("system_info", {})
     current_info = coordinator.data.get("current_info", {})
-    public_config = coordinator.data.get("public_config", {})
-    all_keys = set(system_info) | set(current_info) | set(public_config)
+    config = coordinator.data.get("config", {})
+    all_keys = set(system_info) | set(current_info) | set(config)
     # Exclude keys that are handled by other platforms
-    sensor_keys = [k for k in all_keys if k not in SENSOR_EXCLUDE_KEYS]
+    sensor_keys = sorted(k for k in all_keys if k not in SENSOR_EXCLUDE_KEYS)
     sensors = [
         ClockForgeOSDynamicSensor(coordinator, entry, key)
         for key in sensor_keys
@@ -48,11 +48,11 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
 
     @property
     def native_value(self):
-        # Prefer current_info, then system_info, then public_config
+        # Prefer current_info, then config, then system_info.
         current_info = self.coordinator.data.get("current_info", {})
+        config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        public_config = self.coordinator.data.get("public_config", {})
-        for d in (current_info, system_info, public_config):
+        for d in (current_info, config, system_info):
             if self._key in d:
                 return d[self._key]
         return None

@@ -68,6 +68,12 @@ SWITCH_ICONS = {
     "enableRadar": "mdi:radar",
 }
 
+SWITCH_DISPLAY_NAMES = {
+    "wakeOnMotionEnabled": "Wake On Motion",
+}
+
+LAST_KNOWN_TTL_SEC = 120.0
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -87,11 +93,12 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = self._prettify_name(key)
+        self._attr_name = SWITCH_DISPLAY_NAMES.get(key, self._prettify_name(key))
         self._attr_icon = SWITCH_ICONS.get(key)
         self._pending_state: bool | None = None
         self._pending_until: float = 0.0
         self._last_known_state: bool | None = None
+        self._last_known_at: float = 0.0
 
     @staticmethod
     def _prettify_name(key: str) -> str:
@@ -103,8 +110,9 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
+        now = monotonic()
         # Keep locally written state shortly to bridge firmware cache/read lag.
-        if self._pending_state is not None and monotonic() < self._pending_until:
+        if self._pending_state is not None and now < self._pending_until:
             return self._pending_state
 
         current_info = self.coordinator.data.get("current_info", {})
@@ -115,14 +123,17 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
             if key in current_info:
                 state = str(current_info.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
+                self._last_known_at = now
                 return state
             if key in config:
                 state = str(config.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
+                self._last_known_at = now
                 return state
             if key in system_info:
                 state = str(system_info.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
+                self._last_known_at = now
                 return state
 
         # Derive display power from manualDisplayOff if direct key is absent.
@@ -130,14 +141,16 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
             if "manualDisplayOff" in current_info:
                 state = str(current_info.get("manualDisplayOff")) in ("0", "false", "False")
                 self._last_known_state = state
+                self._last_known_at = now
                 return state
             if "manualDisplayOff" in system_info:
                 state = str(system_info.get("manualDisplayOff")) in ("0", "false", "False")
                 self._last_known_state = state
+                self._last_known_at = now
                 return state
 
-        # Do not force OFF for unknown/missing keys.
-        if self._last_known_state is not None:
+        # Avoid bouncing to OFF on temporary key omissions, but expire stale cache.
+        if self._last_known_state is not None and (now - self._last_known_at) <= LAST_KNOWN_TTL_SEC:
             return self._last_known_state
         if self._pending_state is not None:
             return self._pending_state
@@ -151,8 +164,9 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
 
     async def _async_set_switch(self, state: bool) -> None:
         self._pending_state = state
-        self._pending_until = monotonic() + 5.0
+        self._pending_until = monotonic() + 8.0
         self._last_known_state = state
+        self._last_known_at = monotonic()
         self.async_write_ha_state()
 
         try:

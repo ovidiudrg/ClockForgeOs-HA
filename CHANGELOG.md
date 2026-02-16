@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.7 - 2026-02-16
+- Stabilized auth/session behavior to reduce web UI password churn:
+  - `get_configuration` now uses passive token behavior and never logs in from polling.
+- Improved entity state consistency:
+  - switches now use expiring last-known state fallback and clearer `Wake On Motion` label.
+  - select effect parsing now normalizes numeric/string values for reliable RGB effect sync.
+  - sensors now read `config` (coordinator payload) instead of stale `public_config` key.
+- Improved numeric entity robustness:
+  - number entities are always created and mark themselves unavailable if unsupported.
+  - number reads now include config fallback where appropriate.
+- Removed unused/unsafe `button` platform implementation.
+- Updated integration metadata to version `0.1.7`.
+
 ## 0.1.6 - 2026-02-15
 - Fixed integration load errors that caused `Config flow could not be loaded: {"message":"Invalid handler specified"}`.
 - Reworked API write authentication to match ClockForgeOS firmware token flow:

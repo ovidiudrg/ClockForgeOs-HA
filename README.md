@@ -5,7 +5,7 @@
 Custom integration for ClockForgeOS devices.
 
 ## Release
-- Current version: **0.1.6**
+- Current version: **0.1.7**
 - Changelog: `CHANGELOG.md`
 
 ## Features
@@ -14,9 +14,9 @@ Custom integration for ClockForgeOS devices.
 - Reads live state from `/getCurrentInfos`
 - Exposes dynamic sensors from firmware payloads (including temperature, humidity, pressure, lux, and CPU diagnostics when available)
 - Exposes control entities:
-  - Switches: `displayPower`, `alarmEnable`, `showTimeDate`, `showTemperature`, `showHumidity`, `showPressure`
+  - Switches: `displayPower`, `wakeOnMotionEnabled`, `alarmEnable`, `showTimeDate`, `showTemperature`, `showHumidity`, `showPressure`
   - Numbers: `rgbBrightness`, `rgbAnimationSpeed` (plus additional numeric firmware keys)
-  - Select: `rgbEffect`
+  - Selects: `rgbEffect`, `rgbPalette`
 - Supports password-protected writes using firmware token auth (`/auth/login` + `X-Auth-Token`)
 
 ## Installation (HACS)
