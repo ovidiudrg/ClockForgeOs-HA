@@ -94,6 +94,14 @@ def _is_in_reboot_grace(current_info: dict, system_info: dict) -> bool:
     return uptime_minutes <= REBOOT_GRACE_MINUTES
 
 
+def _source_order_for_key(key: str) -> tuple[str, ...]:
+    # Most switches represent persisted config; prefer config over current_info
+    # to avoid transient default readings after reboot.
+    if key == "displayPower":
+        return ("current_info", "config", "system_info")
+    return ("config", "current_info", "system_info")
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -138,21 +146,27 @@ class ClockForgeOSSettingSwitch(ClockForgeOSEntity, SwitchEntity):
         config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
         in_reboot_grace = _is_in_reboot_grace(current_info, system_info)
+        sources = {
+            "current_info": current_info,
+            "config": config,
+            "system_info": system_info,
+        }
+        read_order = _source_order_for_key(self._key)
 
         for key in SWITCH_READ_ALIASES.get(self._key, [self._key]):
-            if key in current_info:
-                state = str(current_info.get(key)) not in ("0", "false", "False")
+            for source_name in read_order:
+                source = sources[source_name]
+                if key not in source:
+                    continue
+                state = str(source.get(key)) not in ("0", "false", "False")
                 # After device reboot, transient defaults can report false before config settles.
-                if in_reboot_grace and self._last_known_state is True and state is False:
+                if (
+                    source_name == "current_info"
+                    and in_reboot_grace
+                    and self._last_known_state is True
+                    and state is False
+                ):
                     return True
-                self._last_known_state = state
-                return state
-            if key in config:
-                state = str(config.get(key)) not in ("0", "false", "False")
-                self._last_known_state = state
-                return state
-            if key in system_info:
-                state = str(system_info.get(key)) not in ("0", "false", "False")
                 self._last_known_state = state
                 return state
 

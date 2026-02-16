@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.22 - 2026-02-16
+- Fixed automatic switch status recovery regression:
+  - configuration switches now prefer persisted config values over transient boot-time `current_info` defaults.
+  - keeps `displayPower` reading priority on live/current values.
+- Updated integration metadata to version `0.1.22`.
+
 ## 0.1.21 - 2026-02-16
 - Sensor cleanup and UI polish:
   - removed additional noisy/internal diagnostic sensors from default exposure.
