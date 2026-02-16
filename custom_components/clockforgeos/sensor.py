@@ -14,6 +14,34 @@ SENSOR_EXCLUDE_KEYS = set([
     "displayPower", "onboardLed", "enableBlink", "enableDST", "enableAutoShutoff", "tubesSleep", "wakeOnMotionEnabled", "debugEnabled", "manualDisplayOff", "alarmEnable", "mqttEnable", "enableTimeDisplay", "enableTempDisplay", "enableHumidDisplay", "enablePressDisplay", "enableDoubleBlink", "enableRadar", "cathodeProtect"
 ])
 
+SENSOR_ICONS = {
+    "temperature": "mdi:thermometer",
+    "temperature1": "mdi:thermometer",
+    "temperature2": "mdi:thermometer",
+    "humidity": "mdi:water-percent",
+    "humidity1": "mdi:water-percent",
+    "humidity2": "mdi:water-percent",
+    "pressure": "mdi:gauge",
+    "lux": "mdi:weather-sunny",
+    "lx": "mdi:weather-sunny",
+    "cpuTemp": "mdi:cpu-64-bit",
+    "cpuFreqMHz": "mdi:speedometer",
+    "cpuCores": "mdi:chip",
+    "freeHeap": "mdi:memory",
+    "totalHeap": "mdi:memory",
+    "largestFreeBlock": "mdi:memory",
+    "uptime": "mdi:timer-outline",
+    "uptimeMinutes": "mdi:timer-outline",
+    "wifiSignal": "mdi:wifi",
+    "wifiStatus": "mdi:wifi",
+    "wifiIP": "mdi:ip-network",
+    "timeSource": "mdi:clock-outline",
+    "wakeSecondsLeft": "mdi:run-fast",
+    "tubesPower": "mdi:lightbulb-on",
+    "rssi": "mdi:wifi",
+    "mqttStatus": "mdi:lan",
+}
+
 def _prettify_name(key: str) -> str:
     import re
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1 \2', key)
@@ -45,6 +73,7 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_name = _prettify_name(key)
+        self._attr_icon = SENSOR_ICONS.get(key)
 
     @property
     def native_value(self):
