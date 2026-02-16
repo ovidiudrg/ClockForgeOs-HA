@@ -11,7 +11,23 @@ from .entity import ClockForgeOSEntity
 
 SENSOR_EXCLUDE_KEYS = set([
     # Exclude keys that are already covered by other entities or are not useful as sensors
-    "displayPower", "onboardLed", "enableBlink", "enableDST", "enableAutoShutoff", "tubesSleep", "wakeOnMotionEnabled", "debugEnabled", "manualDisplayOff", "alarmEnable", "mqttEnable", "enableTimeDisplay", "enableTempDisplay", "enableHumidDisplay", "enablePressDisplay", "enableDoubleBlink", "enableRadar", "cathodeProtect"
+    "displayPower", "onboardLed", "enableBlink", "enableDST", "enableAutoShutoff", "tubesSleep", "wakeOnMotionEnabled", "debugEnabled", "manualDisplayOff", "alarmEnable", "mqttEnable", "enableTimeDisplay", "enableTempDisplay", "enableHumidDisplay", "enablePressDisplay", "enableDoubleBlink", "enableRadar", "cathodeProtect",
+    # User-requested removals from sensors
+    "dayNight",
+    "isNight",
+    "eepromSize",
+    "eepromUsed",
+    "hv5122Pins",
+    "largestFreeBlock",
+    "totalBytes",
+    "usedBytes",
+    "wifiSwitchResult",
+    "wifiSwitchRollbackRunning",
+    "wifiSwitchRollbackSSID",
+    "wifiSwitchTargetSSID",
+    # Common firmware spelling variants/typos
+    "wifiSwithcResult",
+    "wifiSwtichTargetSSID",
 ])
 
 OPTIONAL_SECONDARY_SENSOR_KEYS = {

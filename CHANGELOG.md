@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.15 - 2026-02-16
+- Removed additional non-actionable/internal fields from sensor entities:
+  - `dayNight`, `isNight`, `eepromSize`, `eepromUsed`, `hv5122Pins`,
+    `largestFreeBlock`, `totalBytes`, `usedBytes`,
+    `wifiSwitchResult`, `wifiSwitchRollbackRunning`,
+    `wifiSwitchRollbackSSID`, `wifiSwitchTargetSSID`.
+- Added exclusion for common firmware typo variants:
+  - `wifiSwithcResult`, `wifiSwtichTargetSSID`.
+- Updated integration metadata to version `0.1.15`.
+
 ## 0.1.14 - 2026-02-16
 - Improved optional secondary sensor handling:
   - `temperature2`, `humidity2`, and `pressure2` are treated as invalid when reported as `255`/`255.0`.
