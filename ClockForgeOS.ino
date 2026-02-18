@@ -853,6 +853,7 @@ bool manualOverride = false;
 // --- New (v8): Tubes sleep / wake-on-motion ---
 bool tubesPowerState = true;         // current HV power state (ON/OFF)
 unsigned long tubesLastMotionMs = 0; //if tubesSleep is enabled, tubes stay ON until this time (millis)
+bool startupMuteRgb = false;         // suppress RGB animations during selected boot phases
 
 bool onboardLedState = false;
 
@@ -3471,6 +3472,7 @@ void setup() {
     // Display is OFF: keep ambient LEDs OFF and stop PWM animation.
   }
   testTubes(300);
+  startupMuteRgb = true; // Keep LEDs OFF between tube test and end of IP display
 
   clearDigits();
   disableDisplay();
@@ -3543,6 +3545,7 @@ debugLogLine("Remote logging ready: SSE /events + Telnet :23");
   
   showMyIp();
   Fdelay(500);
+  startupMuteRgb = false;
   clearDigits();
   Fdelay(200);
   enableDisplay(0);

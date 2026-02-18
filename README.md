@@ -423,6 +423,22 @@ Enable checklist:
 - In your clock profile (`clocks.h`), define `USE_APDS9960_GESTURE`.
 - Wire APDS-9960 to existing I2C bus (`VCC`, `GND`, `SDA`, `SCL`), optional `INT` pin via `APDS9960_INT_PIN`.
 
+### 31) NCS312 (CLOCK_54 / D1 R32 ESP32) RGB/PWM Stabilization
+- Activated `CLOCK_54` profile and disabled `CLOCK_64` for NCS312 deployments.
+- Set NCS312 PWM frequency explicitly to `PWM_FREQ 200`.
+- Disabled onboard LED handling for this profile (`ONBOARD_LED_PIN -1`) to avoid GPIO2 LED conflicts.
+- Switched PWM fixed-color rendering to persisted RGB triplet (`settings.rgbFixR/G/B`) instead of legacy wheel index (`prm.rgbFixColor`).
+- Added hard OFF behavior for PWM backend:
+  - detach LEDC channels,
+  - set PWM pins to `OUTPUT`,
+  - drive pins `LOW`.
+- Added safe reattach behavior:
+  - re-run `ledcSetup(...)`,
+  - re-attach channels,
+  - initialize channel duty to `0`.
+- Fixed recurring one-frame white flash in flowing effects by changing `WHITE_INDEX` sentinel from `192` to `-2` (avoids collision with normal `0..255` color cycle values).
+- For `CLOCK_54`, simplified display power gating path to avoid motion/radar flapping side effects on PWM state transitions.
+
 ## Settings/Schema Notes
 - `Settings` schema was incremented for newly added persisted display fields:
   - display toggles

@@ -3,6 +3,7 @@
 #ifdef USE_NEOPIXEL
 
 #include "settings.h"  // persisted UI settings (debug, RGB fixed color, etc.)
+extern bool startupMuteRgb;
 
 long neoBrightness;
 int colorStep = 1;
@@ -673,6 +674,14 @@ static unsigned long lastRun = 0;
 static bool neoPaused = false;
 static bool alarmWasActive = false;
 bool forceImmediate = false;
+
+  if (startupMuteRgb) {
+    darkenNeopixels();
+    lastRun = millis();
+    neoPaused = true;
+    alarmWasActive = false;
+    return;
+  }
 
   if (EEPROMsaving) return;
     
