@@ -5,9 +5,58 @@
 #define COLORSATURATION 255
 #define WHITE_INDEX 192
 
+extern bool tubesPowerState;
+extern Settings settings;
+
 long pwmBrightness;
 int pwmColorStep = 1;
 int pwmRed,pwmGreen,pwmBlue = 0;
+static bool pwmDetached = false;
+
+static inline void forcePwmPinsLowAndDetach() {
+  #if PWM1_PIN>=0
+    ledcDetachPin(PWM1_PIN);
+    pinMode(PWM1_PIN, OUTPUT);
+    digitalWrite(PWM1_PIN, LOW);
+  #endif
+  #if PWM2_PIN>=0
+    ledcDetachPin(PWM2_PIN);
+    pinMode(PWM2_PIN, OUTPUT);
+    digitalWrite(PWM2_PIN, LOW);
+  #endif
+  #if PWM3_PIN>=0
+    ledcDetachPin(PWM3_PIN);
+    pinMode(PWM3_PIN, OUTPUT);
+    digitalWrite(PWM3_PIN, LOW);
+  #endif
+  pwmDetached = true;
+}
+
+static inline void reattachPwmPinsIfNeeded() {
+  if (!pwmDetached) return;
+  #if PWM1_PIN>=0
+    ledcAttachPin(PWM1_PIN, 0);
+  #endif
+  #if PWM2_PIN>=0
+    ledcAttachPin(PWM2_PIN, 1);
+  #endif
+  #if PWM3_PIN>=0
+    ledcAttachPin(PWM3_PIN, 2);
+  #endif
+  pwmDetached = false;
+}
+
+static inline void setPWMrgb(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness) {
+  #if PWM1_PIN>=0
+    ledcWrite(0, ((uint16_t)r * brightness) / 255);
+  #endif
+  #if PWM2_PIN>=0
+    ledcWrite(1, ((uint16_t)g * brightness) / 255);
+  #endif
+  #if PWM3_PIN>=0
+    ledcWrite(2, ((uint16_t)b * brightness) / 255);
+  #endif
+}
 
 void setPWMcolor(int WheelPos, byte brightness) {
 #ifdef USE_PWMLEDS
@@ -72,6 +121,19 @@ void doAnimationPWM() {
 static unsigned long lastRun = 0;
 
   if (EEPROMsaving) return;
+#ifdef CLOCK_54
+  if ((prm.rgbEffect == 0) || !displayON || !tubesPowerState) {   //switch RGB backlight OFF
+#else
+  if ((prm.rgbEffect == 0) || !displayON || !radarON || !tubesPowerState) {   //switch RGB backlight OFF
+#endif
+    pwmBrightness = 0;
+    forcePwmPinsLowAndDetach();
+    lastRun = millis();
+    return;
+  }
+
+  reattachPwmPinsIfNeeded();
+
   if (alarmON) {
     pwmAlarmLight();
     return;
@@ -81,12 +143,6 @@ static unsigned long lastRun = 0;
   if ((millis()-lastRun)<max(FPS_MSEC,258-prm.rgbSpeed)) return;
   lastRun = millis();
 
-  if ((prm.rgbEffect == 0) || !displayON || !radarON) {   //switch RGB backlight OFF
-    pwmBrightness = 0;
-    setPWMcolor(-1,0);
-    return;
-  }
-  
   pwmColorStep = max(1,prm.rgbSpeed/5);
   pwmBrightness = prm.rgbBrightness;
   if (autoBrightness) {
@@ -98,7 +154,7 @@ static unsigned long lastRun = 0;
 
   //DPRINTLN("  NeoBrightness:"); DPRINT(neoBrightness);
   
-  if (prm.rgbEffect==1) setPWMcolor(prm.rgbFixColor,pwmBrightness);
+  if (prm.rgbEffect==1) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness);
   else pwmRainbow(); //flow
 }
 

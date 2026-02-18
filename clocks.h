@@ -42,7 +42,7 @@
 //#define CLOCK_40  //V1  ESP32, UNFI 6 x IV-11 VFD tubes clock
 //#define CLOCK_41  //V2  ESP32, UNFI 6 x IV-11 VFD tubes clock (átkötés)
 //#define CLOCK_42  //V3  ESP32, UNFI 6 x IV-11 VFD tubes clock
-//#define CLOCK_42a 
+//#define CLOCK_42a //V3a  ESP32, UNFI 6 x IV-11 VFD tubes clock Custom OD ------
 //#define CLOCK_43  //V1  ESP32, UNFI 6 x Z573M Nixie tubes
 //#define CLOCK_44  //V2  ESP32, UNFI 6 x Z573M Nixie tubes (átkötés)
 //#define CLOCK_45  //V3  ESP32, UNFI 6 x Z573M Nixie tubes
@@ -55,12 +55,12 @@
 //#define CLOCK_51   //V2  ESP32, UNFI 2xHV5122 PCB version, 6xZ573 clock z574m 
 //#define CLOCK_52   //ESP32,    P.S. 2xHV5122 PCB version, 6xIN18 clock   PROTOTYPE TESTING!!!
 //#define CLOCK_53   //ESP8266,  UNFI 2xHV5122 PCB version, 6xZ573 clock   PROTOTYPE TESTING!!!
-//#define CLOCK_54   // D1 R32 ESP32 (Uno compatible), + NCS312 Nixie clock KIT!!!
+#define CLOCK_54   // D1 R32 ESP32 (Uno compatible), + NCS312 Nixie clock KIT!!!
 //#define CLOCK_55   //ESP8266,  UNFI 2xHV5122 PCB version, 6xZ573 clock
 //#define CLOCK_56   //WROOM ESP32, UNFI 2xHV5122 6xZ573 clock   /flat panel/
 //#define CLOCK_57   //V2-WROOM ESP32, UNFI 2xHV5122 6xZM1000 clock  /flat panel
 //#define CLOCK_57A  //V2-WROOM ESP32, UNFI 2xHV5222 6xZ57xM clock  /flat panel
-#define CLOCK_64     //ESP32 2xHV52222 6x574m
+//#define CLOCK_64     //ESP32 2xHV52222 6x574m
 //#define CLOCK_70   //1 tube esp8266 Nixie Clock by UNFI 
 //#define CLOCK_71   //2x VQC10 clock by UNFI 
 //#define CLOCK_72   //ESP32, UNFI board, ZM1500
@@ -868,7 +868,7 @@
   #define LIGHT_SENSOR_PIN 35  //Only ADC pins are usable! for example: 34,35,36,39... 
   #define MAXIMUM_LUX 100    //Lux level for maximum tube brightness
   #define LUX_CALC_SCALAR   12518931 * 1.2 
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""  
   #define WEBNAME "GP IV-11"
   //#define DEFAULT_SSID ""
@@ -896,7 +896,7 @@
   #define ALARMSPEAKER_PIN 33   //Alarm buzzer pin                                            
   #define ALARMBUTTON_PIN 32    //Alarm switch off button pin 
   #define ALARM_ON HIGH
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""
   #define WEBNAME "ESP32UniClock 3.0"
   //#define DEFAULT_SSID ""
@@ -928,7 +928,7 @@
   //#define ALARMSPEAKER_PIN 33   //Alarm buzzer pin                                            
   #define ALARMBUTTON_PIN 32    //Alarm switch off button pin 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32UniClock 3.0"
   //#define DEFAULT_SSID ""
@@ -956,7 +956,7 @@
   //#define ALARMSPEAKER_PIN 33   //Alarm buzzer pin                                            
   //#define ALARMBUTTON_PIN 32    //Alarm switch off button pin 
   //#define ALARM_ON HIGH
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""
   #define WEBNAME "ESP32UniClock 3.0"
   //#define DEFAULT_SSID ""
@@ -984,7 +984,7 @@
   //#define ALARMSPEAKER_PIN 22   //Alarm buzzer pin                                            
   //#define ALARMBUTTON_PIN 32    //Alarm switch off button pin 
   //#define ALARM_ON HIGH
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""
   #define WEBNAME "ESP32UniClock 3.0"
   //#define DEFAULT_SSID ""
@@ -1022,7 +1022,7 @@
   #define USE_RTC
   #define PIN_SDA 21
   #define PIN_SCL 22
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""
   #define WEBNAME "Z566M Nixie Clock"
   //#define DEFAULT_SSID ""
@@ -1052,7 +1052,7 @@
   byte tubePixels[] = {0,0,1,1,2,2,3,3,3,3,2,2,1,1,0,0,0};  //4 tubes, double row, 17 leds (GP)  
   #define NO_MULTIPLEX_ESP32
   #define COLON_PIN   2        //Blinking Colon pin.  If not used, SET TO -1                 ( old IN-1-Clock: white:2 brown: SDA)
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD ""
   #define WEBNAME "IN-1 Nixie Clock"
   //#define DEFAULT_SSID ""
@@ -1088,7 +1088,7 @@
   #define TUBE_POWER_PIN 23
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 IV-11 VFD-Clock"
   //#define DEFAULT_SSID ""
@@ -1123,7 +1123,7 @@
   #define TUBE_POWER_PIN 23
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 IV-11 VFD-Clock"
   //#define DEFAULT_SSID ""
@@ -1158,7 +1158,7 @@
   #define TUBE_POWER_PIN 27
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 IV-11 VFD-Clock"
   //#define DEFAULT_SSID ""
@@ -1176,28 +1176,10 @@
   #define USE_RTC
   #define USE_MQTT
   //#define USE_BME280            //I2C Temperature + humidity + pressure
-  //#define USE_BMP280            //I2C Temperature + barometric  pressure
-  //#define USE_AHTX0             //I2C Temperature + humidity
-  //#define USE_SHT21             //I2C Temperature + humidity
+  #define USE_BMP280            //I2C Temperature + barometric  pressure
+  #define USE_AHTX0             //I2C Temperature + humidity
   #define USE_BH1750
-  //#define MQTT_PREFIX "UniClock32"
-  //#define USE_MASTER_CLOCK  //enable it, if you want to get any data from MASTER CLOCK. This will be the sensor#0
-  //#define USE_MASTER_TEMP   //enable it, if you want to get temperature from MASTER CLOCK
-  //#define USE_MASTER_HUMID  //enable it, if you want to get humidity from MASTER CLOCK
-  //#define USE_MASTER_RADAR  //enable it, if you want to get radar from MASTER CLOCK
-  //#define MASTER_TEMPERATURE_TOPIC "homeassistant/sensor/10521c5e14c4/temperature/state"
-  //#define MASTER_HUMIDITY_TOPIC    "homeassistant/sensor/10521c5e14c4/humidity/state"
-  //#define MASTER_RADAR_TOPIC       "homeassistant/sensor/10521c5e14c4/radar/state" 
-  //byte mac[6] = {7,6,0,0,3,2};  //This is the unique ID - set it as you want or mac address of the clock (length: 6) VFD
-  #define MASTER_TEMPERATURE_TOPIC "UniClock32/sensor/7c9ebd076cb4/temperature/state"
-  #define MASTER_HUMIDITY_TOPIC    "UniClock32/sensor/7c9ebd076cb4/humidity/state"
-  #define MASTER_RADAR_TOPIC       "UniClock32/sensor/7c9ebd076cb4/radar/state" 
   byte tubePixels[] = {0,1,2,3,4,5};    //6 tubes, single leds
-  //#define USE_DALLAS_TEMP
-  //#define TEMP_DALLAS_PIN 22    //Dallas temp sensor pin.  If not used, SET TO -1    
-  //#define USE_DHT_TEMP
-  //#define DHTTYPE DHT22
-  //#define TEMP_DHT_PIN 22    //DHT temp sensor pin.  If not used, SET TO -1    
   #define PIN_SDA 21          // you can set the used SDA and SCL pins
   #define PIN_SCL 22           // if it is not default value       
   #define MAX6921_ESP32
@@ -1209,15 +1191,17 @@
     #define PIN_CLK   17  // Shift Register Clock
     #define PIN_DATA  16  // Shift Register Data
     #define PIN_BL    32  // Shift Register Blank (1=display off     0=display on)
-  #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin                                            
+  #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin
+  #define ONBOARD_LED_PIN -1   //Disable onboard LED handling (GPIO2 reserved for speaker)
   #define ALARMBUTTON_PIN 0    //Alarm switch off button pin
   #define TUBE_POWER_PIN 27
   #define TUBE_POWER_ON  HIGH 
-  #define RADAR_PIN 18 
+  #define RADAR_PIN 34 
   #define RADAR_TIMEOUT 160  //second (5min) 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNICLOCK32"
-  #define AP_PASSWORD ""  
+  #define AP_NAME "NixieCLock"
+  #define AP_PASSWORD "18273645" 
+  #define WEB_ADMIN_PASSWORD "NixieClock"  // Web UI admin password (change this) 
   #define WEBNAME "IV-11 VFD Nixie Clock"
 #endif
 
@@ -1244,7 +1228,7 @@
   #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin                                            
   #define ALARMBUTTON_PIN 0    //Alarm switch off button pin 
   #define ALARM_ON HIGH
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""
   #define WEBNAME "Z573M Nixie-Clock"
   //#define DEFAULT_SSID ""
@@ -1275,7 +1259,7 @@
   #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin                                            
   #define ALARMBUTTON_PIN 0    //Alarm switch off button pin 
   #define ALARM_ON HIGH
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""
   #define WEBNAME "ESP32 Z573M Nixie-Clock"
   //#define DEFAULT_SSID ""
@@ -1306,7 +1290,7 @@
   #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin                                            
   #define ALARMBUTTON_PIN 0    //Alarm switch off button pin 
   #define ALARM_ON HIGH
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""
   #define WEBNAME "ESP32 Z573M Nixie-Clock"
   //#define DEFAULT_SSID ""
@@ -1380,7 +1364,7 @@
   #define TUBE_POWER_PIN 27
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 10-LT-50G VFD-Clock"
   //#define DISABLE_NIGHT_ANIMATION
@@ -1423,7 +1407,7 @@
   //#define TUBE_POWER_PIN 
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 IV-17 VFD-Clock"
   //#define DEFAULT_SSID ""
@@ -1480,7 +1464,7 @@
   #define TUBE_POWER_PIN 25     //25/27
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD "uniclock"  
   #define WEBNAME "IV-11 VFD-Clock"
   
@@ -1541,7 +1525,7 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD "" 
   #define WEBNAME "UNFI Nixie-Clock HV5122"
   //#define DEFAULT_SSID ""
@@ -1571,7 +1555,7 @@
   //#define USE_SHT21             //I2C Temperature + humidity
   #define USE_BH1750            //I2C luxmeter sensor
   #define USE_MQTT
-  //#define MQTT_PREFIX "UniClock32"
+  //#define MQTT_PREFIX "ClockForgeOS"
   //#define USE_MASTER_CLOCK  //enable it, if you want to get any data from MASTER CLOCK. This will be the sensor#0
   //#define USE_MASTER_TEMP   //enable it, if you want to get temperature from MASTER CLOCK
   //#define USE_MASTER_HUMID  //enable it, if you want to get humidity from MASTER CLOCK
@@ -1579,9 +1563,9 @@
   //#define MASTER_TEMPERATURE_TOPIC "homeassistant/sensor/10521c5e14c4/temperature/state"
   //#define MASTER_HUMIDITY_TOPIC    "homeassistant/sensor/10521c5e14c4/humidity/state"
   //#define MASTER_RADAR_TOPIC       "homeassistant/sensor/10521c5e14c4/radar/state"  
-  //#define MASTER_TEMPERATURE_TOPIC "UniClock32/sensor/7c9ebd370444/temperature/state"
-  //#define MASTER_HUMIDITY_TOPIC    "UniClock32/sensor/7c9ebd370444/humidity/state"
-  //#define MASTER_RADAR_TOPIC       "UniClock32/sensor/7c9ebd370444/radar/state" 
+  //#define MASTER_TEMPERATURE_TOPIC "ClockForgeOS/sensor/7c9ebd370444/temperature/state"
+  //#define MASTER_HUMIDITY_TOPIC    "ClockForgeOS/sensor/7c9ebd370444/humidity/state"
+  //#define MASTER_RADAR_TOPIC       "ClockForgeOS/sensor/7c9ebd370444/radar/state" 
   
 //_______________________________ HV5122 setup ____________________________________________________  
   #define NEWHV5122
@@ -1615,7 +1599,7 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD "" 
   #define WEBNAME "Nixie Clock Z574m"
   //#define DEFAULT_SSID ""
@@ -1755,10 +1739,11 @@
   #define MAXBRIGHTNESS 100    
   #define DOUBLE_BLINK
   #define USE_RTC
+  #define ONBOARD_LED_PIN -1
   #define PIN_MODE_SWITCH 2 //Analog A0 port!!!    
   #define PIN_FLD_BUTTON 4
   #define PIN_SET_BUTTON 36
-  #define USE_NEOPIXEL 
+  //#define USE_NEOPIXEL 
   //#define NEOPIXEL_PIN 22
   byte tubePixels[] = {0,1,2,3,4,5};        //6 tubes, single leds
   #define USE_DALLAS_TEMP
@@ -1794,6 +1779,7 @@
   #define PWM1_PIN 13  //Uno: D6
   #define PWM2_PIN 27  //Uno: D9
   #define PWM3_PIN 25  //Uno: D3
+  #define PWM_FREQ 200 // Board-specific PWM frequency for NCS312
   #define ALARMSPEAKER_PIN 26   //Alarm buzzer pin                                            
   //#define ALARMBUTTON_PIN 2    //Alarm switch off button pin 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
@@ -1805,24 +1791,14 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNICLOCK32"
-  #define AP_PASSWORD "" 
+  #define AP_PASSWORD "18273645" 
+  #define WEB_ADMIN_PASSWORD "NixieClock"  // Web UI admin password (change this)
   #define WEBNAME "NCS312 Nixie Clock"
   //#define DEFAULT_SSID ""
   //#define DEFAULT_PSW ""
   //#define USE_WIFIMANAGER
   //#define DISABLE_NIGHT_ANIMATION
-  #define USE_MASTER_CLOCK  //enable it, if you want to get any data from MASTER CLOCK. This will be the sensor#0
-  #define USE_MASTER_TEMP   //enable it, if you want to get temperature from MASTER CLOCK
-  #define USE_MASTER_HUMID  //enable it, if you want to get humidity from MASTER CLOCK
-  #define USE_MASTER_RADAR  //enable it, if you want to get radar from MASTER CLOCK
-  //#define MASTER_TEMPERATURE_TOPIC "homeassistant/sensor/10521c5e14c4/temperature/state"
-  //#define MASTER_HUMIDITY_TOPIC    "homeassistant/sensor/10521c5e14c4/humidity/state"
-  #define MASTER_RADAR_TOPIC       "UniClock32/sensor/7c9ebd370444/radar/state"  
-  //#define MASTER_TEMPERATURE_TOPIC "shellies/+/sensor/temperature"
-  //#define MASTER_HUMIDITY_TOPIC    "shellies/+/sensor/humidity"
-  #define MASTER_TEMPERATURE_TOPIC "UniClock32/sensor/7c9ebd370444/temperature/state"
-  #define MASTER_HUMIDITY_TOPIC    "UniClock32/sensor/7c9ebd370444/humidity/state"
+
 #endif
 
 #ifdef CLOCK_55   //ESP8266 D1 Mini,UNFI 2xHV5122 PCB version, 6xZ573M clock
@@ -1876,7 +1852,7 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD "" 
   #define WEBNAME "UNFI Nixie Clock HV5122"
   //#define DEFAULT_SSID ""
@@ -1936,7 +1912,7 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNICLOCK32"
+  #define AP_NAME "ClockForgeOS"
   #define AP_PASSWORD "uniclock" 
   #define WEBNAME "UNFI Nixie-Clock HV5122"
   #define DEFAULT_SSID "Unferdorben_2"
@@ -1998,7 +1974,7 @@
   //#define TEMP_CHARCODE 10
   //#define GRAD_CHARCODE 10 
   //#define PERCENT_CHARCODE 10
-  #define AP_NAME "UNFICLOCK32"
+  #define AP_NAME "NixieCLock"
   #define AP_PASSWORD "uniclock" 
   #define WEBNAME " Nixie-Clock"
   #define DEFAULT_SSID ""
@@ -2124,8 +2100,8 @@
   #define TEMP_CHARCODE 10
   #define GRAD_CHARCODE 10 
   #define PERCENT_CHARCODE 10
-  #define AP_NAME "UNFICLOCK32"
-  #define AP_PASSWORD "" 
+  #define AP_NAME "NixieCLock"
+  #define AP_PASSWORD "18273645" 
   #define WEB_ADMIN_PASSWORD "NixieClock"  // Web UI admin password (change this)
   #define WEBNAME "Z574m Nixie Clock"
 #endif
@@ -2684,3 +2660,4 @@
   #define DP_PIN   -1        //Decimal Point pin.
 #endif
 //______________________________________________________________________________________
+  

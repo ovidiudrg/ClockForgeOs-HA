@@ -5044,6 +5044,33 @@ bool isMotionDetectedNow() {
 }
 
 void checkTubePowerOnOff(void) {
+  #ifdef CLOCK_54
+  // NCS312 (D1 R32) uses a simple display power model to avoid motion/radar-induced flapping.
+  const bool wantOn54 = prm.enableTimeDisplay && (!prm.manualDisplayOff);
+  if (wantOn54 != tubesPowerState) {
+    tubesPowerState = wantOn54;
+    DPRINT("DISPLAY: ");
+    DPRINTLN(tubesPowerState ? "ON" : "OFF");
+    if (!tubesPowerState) {
+      clearDigits();
+      rawWrite();
+      #ifdef USE_NEOPIXEL
+      darkenNeopixels();
+      #endif
+    }
+  }
+#ifdef TUBE_POWER_PIN
+  if (GPIO_IS_VALID_OUTPUT_GPIO((gpio_num_t)TUBE_POWER_PIN)) {
+  #if defined(TUBE_POWER_ON)
+    digitalWrite((int)TUBE_POWER_PIN, tubesPowerState ? TUBE_POWER_ON : !TUBE_POWER_ON);
+  #else
+    digitalWrite((int)TUBE_POWER_PIN, tubesPowerState ? HIGH : LOW);
+  #endif
+  }
+#endif
+  return;
+  #endif
+
   // Clock64-friendly tubes sleep logic (based on V8 behavior):
   // - If prm.tubesSleep is enabled, tubes are OFF by default and wake ON for N seconds after motion.
   // - N is prm.tubesWakeSeconds (seconds). If not set, fallback to prm.radarTimeout (minutes) for backward compatibility.
@@ -5417,17 +5444,15 @@ void loop(void) {
 #else
   doAnimationMakuna();
 #endif
-  if (tubesPowerState || alarmON) {
-    doAnimationPWM();
-  }
-  alarmSound();
   checkTubePowerOnOff();
+  doAnimationPWM();
+  alarmSound();
 #if defined(ESP32)
   processTouchButton();
 #endif
   processGestureSensor();
   debugSnapshot();
-  heapGuardTick();
+  //heapGuardTick();
   getLightSensor();
   processPendingWifiSwitch();
   //checkWifiMode();
