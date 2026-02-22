@@ -10,7 +10,7 @@ char tubeDriver[] = "ZM1500_ESP32";
 #endif
 
 int DRAM_ATTR PWMrefresh=11000;   ////msec, Multiplex time period. Greater value => slower multiplex frequency
-int DRAM_ATTR PWM_min = 2000;
+int DRAM_ATTR PWM_min = 1000;
 int DRAM_ATTR PWM_max = 10000;
 
 //#define dataPin  14  //D5
@@ -176,3 +176,4 @@ DPRINTLN("---- Generated Character / Pins table -----");
 
 void IRAM_ATTR clearTubes() {}
 #endif
+

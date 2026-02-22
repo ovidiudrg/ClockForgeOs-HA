@@ -17,7 +17,7 @@
   - Bump it ONLY when you change the struct layout in an incompatible way.
 */
 
-static constexpr uint16_t SETTINGS_SCHEMA_VERSION = 0x0107; // UniClock settings schema v1.7 (added gesture action mappings)
+static constexpr uint16_t SETTINGS_SCHEMA_VERSION = 0x0109; // UniClock settings schema v1.9
 
 // Value used to detect "unset" RGB values when migrating from older EEPROM contents.
 static constexpr uint8_t RGB_UNSET = 0xFF;
@@ -56,12 +56,7 @@ struct Settings {
   bool enablePressDisplay;  // Show pressure on tubes
   uint8_t pressureStart;    // Pressure display start second (0..59)
   uint8_t pressureEnd;      // Pressure display end second (0..59)
-
-  // --- Gesture action mapping (APDS-9960; 0..5) ---
-  uint8_t gestureUpAction;
-  uint8_t gestureDownAction;
-  uint8_t gestureLeftAction;
-  uint8_t gestureRightAction;
+  uint8_t rgbNightEnabled;  // 0/1: allow RGB effects during automatic night mode
 
   // --- MQTT inbound topics (runtime configurable from UI) ---
   // Empty string = disabled.
@@ -70,6 +65,9 @@ struct Settings {
   char mqttInRadarTopic[96];
   char mqttInLuxTopic[96];
   char mqttInPressureTopic[96];
+
+  // --- RGB AutoDim tuning ---
+  uint8_t rgbAutoDimDayMinPercent; // 0..100: minimum RGB level in DAY when auto-dim is active
 };
 
 // Global settings instance (defined in a .ino/.cpp)

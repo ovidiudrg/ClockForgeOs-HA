@@ -92,7 +92,8 @@ void IRAM_ATTR writeDisplay(){  //void IRAM_ATTR  writeDisplay(){
   static DRAM_ATTR int brightness;
   static DRAM_ATTR int PWMtimeBrightness=PWM_min;
 
-  if (EEPROMsaving) {  //stop refresh, while EEPROM write is in progress!
+  extern volatile boolean neoShowInProgress;
+  if (EEPROMsaving || neoShowInProgress) {  //stop refresh while EEPROM or NeoPixel frame write is in progress
       //digitalWrite(PIN_BL,HIGH);    //OFF
     return;
   }

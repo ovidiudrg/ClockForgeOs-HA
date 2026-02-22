@@ -336,7 +336,7 @@ void inline shiftOutReverse(byte myDataOut) {
 void ICACHE_RAM_ATTR writeDisplay() {}
 
 
-int PWM_min = 0;
+int PWM_min = 80;
 int PWM_max = 800;
 
 void writeDisplay2() {
@@ -496,3 +496,4 @@ void writeDisplaySingle() {
 }
 
 #endif
+

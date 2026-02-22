@@ -151,8 +151,6 @@ function updateSystemInfoDisplay(data, sampleBytes, sampleMs) {
         ? data.physicalSensors
         : ((data && data.installedSensors !== undefined) ? data.installedSensors : '--');
     $('#sysPhysicalSensors').text(formatPhysicalSensors(physicalSensorsText));
-    var gesturePresent = !!(data && data.gestureSensorPresent);
-    $('#sysGestureSensor').text(gesturePresent ? 'Detected' : 'Not detected');
     $('#sysVirtualSensors').text((data && data.virtualSensors !== undefined) ? data.virtualSensors : '--');
     $('#sysTempSensors').text((data && data.temperatureSensors !== undefined) ? data.temperatureSensors : '--');
     $('#sysHumidSensors').text((data && data.humiditySensors !== undefined) ? data.humiditySensors : '--');
@@ -225,25 +223,64 @@ function updateSystemInfoDisplay(data, sampleBytes, sampleMs) {
     }
     $('#sysUsedPins').html(pinsHtml || '--');
 
-    var hvHtml = '';
+    var driverPinsHtml = '';
+    var driverLabel = 'Driver Pin Settings';
     if (Array.isArray(data.hv5122Pins)) {
         if (data.hv5122Pins.length > 0) {
-            hvHtml += '<table class="sys-table sys-hv-table">';
-            hvHtml += '<thead><tr><th>Tube</th>';
-            for (var c = 0; c < 10; c++) hvHtml += '<th>D' + c + '</th>';
-            hvHtml += '</tr></thead><tbody>';
+            driverLabel = 'HV5122 Pin Settings';
+            driverPinsHtml += '<table class="sys-table sys-hv-table">';
+            driverPinsHtml += '<thead><tr><th>Tube</th>';
+            for (var c = 0; c < 10; c++) driverPinsHtml += '<th>D' + c + '</th>';
+            driverPinsHtml += '</tr></thead><tbody>';
             data.hv5122Pins.forEach(function(row, idx) {
-                hvHtml += '<tr><td>T' + idx + '</td>';
+                driverPinsHtml += '<tr><td>T' + idx + '</td>';
                 for (var j = 0; j < 10; j++) {
                     var cell = (Array.isArray(row) && row[j] !== undefined) ? row[j] : '';
-                    hvHtml += '<td>' + esc(cell) + '</td>';
+                    driverPinsHtml += '<td>' + esc(cell) + '</td>';
                 }
-                hvHtml += '</tr>';
+                driverPinsHtml += '</tr>';
             });
-            hvHtml += '</tbody></table>';
+            driverPinsHtml += '</tbody></table>';
         }
     }
-    $('#sysHV5122Pins').html(hvHtml || '--');
+    else if (Array.isArray(data.max6921SegmentPins) || Array.isArray(data.max6921DigitPins)) {
+        driverLabel = 'MAX6921 Pin Settings';
+
+        var seg = Array.isArray(data.max6921SegmentPins) ? data.max6921SegmentPins : [];
+        var dig = Array.isArray(data.max6921DigitPins) ? data.max6921DigitPins : [];
+        var ctrl = (data && typeof data.max6921ControlPins === 'object' && data.max6921ControlPins) ? data.max6921ControlPins : null;
+
+        if (ctrl) {
+            driverPinsHtml += '<div class="info-row"><span class="label">LE:</span><span class="value mono-text">GPIO' + esc(ctrl.PIN_LE) + '</span></div>';
+            driverPinsHtml += '<div class="info-row"><span class="label">CLK:</span><span class="value mono-text">GPIO' + esc(ctrl.PIN_CLK) + '</span></div>';
+            driverPinsHtml += '<div class="info-row"><span class="label">DATA:</span><span class="value mono-text">GPIO' + esc(ctrl.PIN_DATA) + '</span></div>';
+            driverPinsHtml += '<div class="info-row"><span class="label">BL:</span><span class="value mono-text">GPIO' + esc(ctrl.PIN_BL) + '</span></div>';
+        }
+
+        if (seg.length > 0) {
+            driverPinsHtml += '<table class="sys-table"><thead><tr><th>Segment</th><th>OUT bit</th></tr></thead><tbody>';
+            var segNames = ['a','b','c','d','e','f','g','dp'];
+            for (var si = 0; si < seg.length; si++) {
+                var sn = (si < segNames.length) ? segNames[si] : ('s' + si);
+                driverPinsHtml += '<tr><td>' + esc(sn) + '</td><td>' + esc(seg[si]) + '</td></tr>';
+            }
+            driverPinsHtml += '</tbody></table>';
+        }
+
+        if (dig.length > 0) {
+            driverPinsHtml += '<table class="sys-table"><thead><tr><th>Digit</th><th>OUT bit</th></tr></thead><tbody>';
+            for (var di = 0; di < dig.length; di++) {
+                driverPinsHtml += '<tr><td>' + esc(di + 1) + '</td><td>' + esc(dig[di]) + '</td></tr>';
+            }
+            driverPinsHtml += '</tbody></table>';
+        }
+    }
+    else if (data && data.driverSetupStr) {
+        driverPinsHtml = String(data.driverSetupStr);
+    }
+
+    $('#sysDriverPinsLabel').text(driverLabel);
+    $('#sysDriverPins').html(driverPinsHtml || '--');
 }
 
 function formatBytes(bytes) {

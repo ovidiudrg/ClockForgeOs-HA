@@ -5,6 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="site.css?v=20260213b">
+    <link id="retroThemeStylesheet" rel="stylesheet" href="theme-retro.css?v=20260220a" disabled>
+    <link id="vfdThemeStylesheet" rel="stylesheet" href="theme-vfd.css?v=20260220a" disabled>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20260215c">
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=20260215c" sizes="any">
     <link rel="shortcut icon" type="image/x-icon" href="favicon.ico?v=20260215c">
@@ -22,12 +24,37 @@
             var uiPanel = localStorage.getItem('ui_panel') || '#161616';
             var uiAccent = localStorage.getItem('ui_accent') || '#D96025';
             var uiText = localStorage.getItem('ui_text') || '#DDDDDD';
+            var uiScale = parseFloat(localStorage.getItem('ui_scale') || '1');
+            if (!(uiScale > 0)) uiScale = 1;
+            if (uiScale < 0.7) uiScale = 0.7;
+            if (uiScale > 1.2) uiScale = 1.2;
+            if (window.innerWidth && window.innerWidth <= 768) {
+                uiScale = 1;
+            }
             
             root.style.setProperty('--ui-width', uiWidth);
             root.style.setProperty('--ui-bg', uiBg);
             root.style.setProperty('--ui-panel', uiPanel);
             root.style.setProperty('--ui-accent', uiAccent);
             root.style.setProperty('--ui-text', uiText);
+            root.style.setProperty('--ui-scale', String(uiScale));
+
+            var autoThemeRaw = localStorage.getItem('ui_auto_theme');
+            var autoTheme = !(autoThemeRaw === '0' || autoThemeRaw === 'false' || autoThemeRaw === 'off');
+            var uiTheme = autoTheme
+                ? (localStorage.getItem('ui_theme_auto_last') || localStorage.getItem('ui_theme') || 'original')
+                : (localStorage.getItem('ui_theme') || 'original');
+            var retroLink = document.getElementById('retroThemeStylesheet');
+            var vfdLink = document.getElementById('vfdThemeStylesheet');
+            var retroEnabled = (uiTheme === 'retro');
+            var vfdEnabled = (uiTheme === 'vfd');
+            if (retroLink) {
+                retroLink.disabled = !retroEnabled;
+            }
+            if (vfdLink) {
+                vfdLink.disabled = !vfdEnabled;
+            }
+            root.setAttribute('data-ui-theme', vfdEnabled ? 'vfd' : (retroEnabled ? 'retro' : 'original'));
         } catch(e) {}
     })();
     </script>
@@ -161,6 +188,21 @@
                     <label for="alarmPeriod">Alarm End (sec)</label>
                     <input type="range" min="1" max="240" class="slider" id="alarmPeriod">
                 </div>
+                <div class="control-holder alarm-tune-holder hidden">
+                    <label for="alarmTune">Alarm Tune</label>
+                    <select id="alarmTune">
+                        <option value="0">Beep Pattern</option>
+                        <option value="1">Classic</option>
+                        <option value="2">Soft Chime</option>
+                        <option value="3">PinkPanther</option>
+                        <option value="4">MissionImp</option>
+                        <option value="5">VanessaMae</option>
+                        <option value="6">DasBoot</option>
+                        <option value="7">Scatman</option>
+                        <option value="8">Popcorn</option>
+                        <option value="9">WeWishYou</option>
+                    </select>
+                </div>
 
 				<div class="control-holder">
                     <label>Touch Short Press</label>
@@ -190,51 +232,6 @@
                     </select>
                 </div>
 
-                <div class="control-holder gesture-holder hidden">
-                    <label>Gesture UP Action</label>
-                    <select id="gestureUpAction">
-                        <option value="0">None</option>
-                        <option value="1">Alarm OFF</option>
-                        <option value="2">Color Next</option>
-                        <option value="5">Color Previous</option>
-                        <option value="3">Display OFF</option>
-                        <option value="4">Display Toggle</option>
-                    </select>
-                </div>
-                <div class="control-holder gesture-holder hidden">
-                    <label>Gesture DOWN Action</label>
-                    <select id="gestureDownAction">
-                        <option value="0">None</option>
-                        <option value="1">Alarm OFF</option>
-                        <option value="2">Color Next</option>
-                        <option value="5">Color Previous</option>
-                        <option value="3">Display OFF</option>
-                        <option value="4">Display Toggle</option>
-                    </select>
-                </div>
-                <div class="control-holder gesture-holder hidden">
-                    <label>Gesture LEFT Action</label>
-                    <select id="gestureLeftAction">
-                        <option value="0">None</option>
-                        <option value="1">Alarm OFF</option>
-                        <option value="2">Color Next</option>
-                        <option value="5">Color Previous</option>
-                        <option value="3">Display OFF</option>
-                        <option value="4">Display Toggle</option>
-                    </select>
-                </div>
-                <div class="control-holder gesture-holder hidden">
-                    <label>Gesture RIGHT Action</label>
-                    <select id="gestureRightAction">
-                        <option value="0">None</option>
-                        <option value="1">Alarm OFF</option>
-                        <option value="2">Color Next</option>
-                        <option value="5">Color Previous</option>
-                        <option value="3">Display OFF</option>
-                        <option value="4">Display Toggle</option>
-                    </select>
-                </div>
-			
             </div>
 
 			<!-- display settings -->	
@@ -291,6 +288,13 @@
                     <span class="switcher-text left non-selectable" for="enableAutoShutoff">off</span>
                     <span class="switcher non-selectable" for="enableAutoShutoff"></span>
                     <span class="switcher-text right non-selectable" for="enableAutoShutoff">on</span>
+                </div>
+                <div class="control-holder rgb-holder">
+                    <label>RGB On/Off (Night Mode)</label>
+                    <input id="rgbNightEnabled" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="rgbNightEnabled">off</span>
+                    <span class="switcher non-selectable" for="rgbNightEnabled"></span>
+                    <span class="switcher-text right non-selectable" for="rgbNightEnabled">on</span>
                 </div>
 				<div class="control-holder">
                     <label>Day</label>
@@ -440,7 +444,7 @@
                         <option value="6">Color FlowChanger</option>
                         <option value="7">Color FlowChanger Random-1</option>
                         <option value="8">Color FlowChanger Random-2</option>
-                        <option value="9">Color FlowChanger Random-3</option>
+                        <option value="9">Fireworks</option>
                         <option value="10">Knight Rider's KITT</option>
 						<option value="11">HeartBeat</option>
                     </select>
@@ -448,6 +452,11 @@
                 <div class="control-holder rgb-holder">
                     <label>RGB Brightness</label>
                     <input type="range" min="8" max="255" class="slider" id="rgbBrightness">
+                </div>
+                <div class="control-holder rgb-holder lux-holder">
+                    <label>AutoDim Day Min (%) <span id="rgbAutoDimDayMinPercentVal" class="info info-muted">25%</span></label>
+                    <input type="range" min="0" max="100" class="slider" id="rgbAutoDimDayMinPercent">
+                    <div class="info info-muted">Minimum RGB in day mode when AutoDim is ON and lux is low.</div>
                 </div>
                 
                 <div class="control-holder" id="fixedColorRgbSection">
@@ -609,35 +618,40 @@
             </div>
             <!-- Sensor corrections -->
 				<div class="control-holder temperature-holder">
-                    <label>Temperature#1</label>
+                    <label>Temperature#1 <span id="corrT0Live" class="info info-muted info-small">Live: --</span></label>
                     <input type="range" min="-9" max="9" step="0.1" class="slider" id="corrT0">
+                    <span id="corrT0Val" class="info info-muted info-small"></span>
                 </div>
 				<div class="control-holder temperature-holder2">
-                    <label>Temperature#2</label>
+                    <label>Temperature#2 <span id="corrT1Live" class="info info-muted info-small">Live: --</span></label>
                     <input type="range" min="-9" max="9" step="0.1" class="slider" id="corrT1">
+                    <span id="corrT1Val" class="info info-muted info-small"></span>
                 </div>
 				<div class="control-holder humidity-holder">
-                    <label>Humidity#1</label>
+                    <label>Humidity#1 <span id="corrH0Live" class="info info-muted info-small">Live: --</span></label>
                     <input type="range" min="-35" max="35" step="0.1" class="slider" id="corrH0">
+                    <span id="corrH0Val" class="info info-muted info-small"></span>
                 </div>	
 				<div class="control-holder humidity-holder2">
-                    <label>Humidity#2</label>
+                    <label>Humidity#2 <span id="corrH1Live" class="info info-muted info-small">Live: --</span></label>
                     <input type="range" min="-35" max="35" step="0.1" class="slider" id="corrH1">
+                    <span id="corrH1Val" class="info info-muted info-small"></span>
                 </div>					
 				<div class="control-holder wordclock-holder">			
                     <label>CathodeProtect (minutes)</label>
                     <input type="range" min="1" max="60" step="1" class="slider" id="cathProtMin">
+                    <span id="cathProtMinVal" class="info info-muted info-small"></span>
                 </div>				
                 <div class="control-holder">
                     <label>Firmware Server</label>
                     <input type="text" id="firmware">
                 </div>
-				<div class="control-holder">
-                    <label>Onboard LED</label>
-                    <input id="onboardLed" type="checkbox" class="switch">
-                    <span class="switcher-text left non-selectable" for="onboardLed">off</span>
-                    <span class="switcher non-selectable" for="onboardLed"></span>
-                    <span class="switcher-text right non-selectable" for="onboardLed">on</span>
+                <div class="control-holder">
+                    <label>UI - Auto Theme by Hardware</label>
+                    <input id="uiAutoTheme" type="checkbox" class="switch">
+                    <span class="switcher-text left non-selectable" for="uiAutoTheme">off</span>
+                    <span class="switcher non-selectable" for="uiAutoTheme"></span>
+                    <span class="switcher-text right non-selectable" for="uiAutoTheme">on</span>
                 </div>
 				<br><br><br>
                 <div class="control-holder">
@@ -665,6 +679,14 @@
                 <br><br>
 
                 <div class="control-holder">
+                    <label>UI - Theme</label>
+                    <select id="uiTheme">
+                        <option value="original">Original</option>
+                        <option value="retro">Industrial Retro</option>
+                        <option value="vfd">VFD Neon</option>
+                    </select>
+                </div>
+                <div class="control-holder">
                     <label>UI - Page width</label>
                     <select id="uiWidth">
                         <option value="600">600 px</option>
@@ -672,6 +694,22 @@
                         <option value="1000">1000 px</option>
                         <option value="1200">1200 px</option>
                         <option value="100%">Full width</option>
+                    </select>
+                </div>
+
+                <div class="control-holder">
+                    <label>UI - Scale (Desktop)</label>
+                    <select id="uiScale">
+                        <option value="70">70%</option>
+                        <option value="75">75%</option>
+                        <option value="80">80%</option>
+                        <option value="85">85%</option>
+                        <option value="90">90%</option>
+                        <option value="95">95%</option>
+                        <option value="100">100%</option>
+                        <option value="105">105%</option>
+                        <option value="110">110%</option>
+                        <option value="120">120%</option>
                     </select>
                 </div>
 
@@ -763,7 +801,6 @@
                             <label>Sensors</label>
                             <div class="info-panel">
                                 <div class="info-row"><span class="label">Physical sensors:</span><span id="sysPhysicalSensors" class="value">--</span></div>
-                                <div class="info-row"><span class="label">Gesture sensor:</span><span id="sysGestureSensor" class="value">--</span></div>
                                 <div class="info-row"><span class="label">Virtual/MQTT sensors:</span><span id="sysVirtualSensors" class="value">--</span></div>
                                 <div class="info-row"><span class="label">Temperature sensors:</span><span id="sysTempSensors" class="value">--</span></div>
                                 <div class="info-row"><span class="label">Humidity sensors:</span><span id="sysHumidSensors" class="value">--</span></div>
@@ -781,8 +818,8 @@
                 </div>
 
                 <div class="control-holder control-full control-auto-height">
-                    <label>HV5122 Pin Settings</label>
-                    <div class="info-panel" id="sysHV5122Pins"></div>
+                    <label id="sysDriverPinsLabel">Driver Pin Settings</label>
+                    <div class="info-panel" id="sysDriverPins"></div>
                 </div>
                 <br><br>
                 <div class="control-holder control-full control-auto-height">
@@ -814,24 +851,6 @@
 })();
 </script>
 
-
-<script>
-(function(){
-  function add(msg){
-    try{
-      var d=document.createElement('div');
-      d.style.position='fixed';d.style.right='8px';d.style.bottom='8px';
-      d.style.zIndex='99999';d.style.padding='6px 10px';d.style.fontFamily='monospace';
-      d.style.fontSize='12px';d.style.background='rgba(0,0,0,0.55)';d.style.border='1px solid #555';
-      d.style.borderRadius='8px';d.style.color='#ddd';
-      d.textContent=msg;
-      document.body.appendChild(d);
-      setTimeout(function(){ if(d && d.parentNode){ d.parentNode.removeChild(d); } }, 6000);
-    }catch(e){}
-  }
-  add('UI loaded. jQuery=' + (!!window.jQuery));
-})();
-</script>
 
 </body>
 

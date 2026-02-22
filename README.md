@@ -8,6 +8,56 @@ Features optional Dallas Thermometer, DS3231 RTC, Neopixel integration, GPS, and
 
 All API calls are served by the AsyncWebServer in `ClockForgeOS.ino`.
 
+### Authentication (Token-Based)
+
+Authentication is required for all write/maintenance routes and selected read routes.
+
+#### `POST /auth/login`
+- Content type: `application/x-www-form-urlencoded`
+- Body:
+  - `password=<admin_password>`
+- Rate-limit / lockout:
+  - max `5` failed attempts per `5` minutes (per client IP)
+  - lockout cooldown: `5` minutes
+  - lockout response: `429 {"error":"too_many_attempts","retryAfterSec":...}`
+- Success response:
+  - `ok`, `token`, `ttlSec`
+  - `passwordConfigured` (persistent password configured in EEPROM)
+  - `passwordWeak`
+  - `mustChangePassword`
+
+#### `POST /auth/changePassword`
+- Content type: `application/x-www-form-urlencoded`
+- Body:
+  - `currentPassword=<current_password>`
+  - `newPassword=<new_password>`
+- Rate-limit / lockout:
+  - same policy as login (`5` failed attempts / `5` minutes, `5` minute cooldown, per client IP)
+  - lockout response: `429 {"error":"too_many_attempts","retryAfterSec":...}`
+- Password policy:
+  - minimum 10 characters
+  - at least one uppercase letter
+  - at least one lowercase letter
+  - at least one digit
+  - no spaces
+- On success, auth token is rotated and returned in response.
+
+#### Protected route usage
+- Recommended header: `X-Auth-Token: <token>`
+- Fallback form/query key: `authToken=<token>`
+- On `401 {"error":"unauthorized"}`: login again and retry.
+
+Quick flow example:
+```bash
+curl -X POST http://CLOCK_IP/auth/login -d "password=YourAdminPassword"
+# Use returned token:
+curl -H "X-Auth-Token: YOUR_TOKEN" http://CLOCK_IP/getConfiguration
+curl -X POST -H "X-Auth-Token: YOUR_TOKEN" http://CLOCK_IP/saveSetting -d "key=rgbEffect" -d "value=2"
+```
+
+Home Assistant add-on note:
+- If you change the device admin password, update the add-on credentials as well.
+
 ### 1) Realtime stream
 
 #### `GET /events`
@@ -29,10 +79,15 @@ es.addEventListener('log', e => console.log('log', e.data));
 ### 2) Configuration + runtime data
 
 #### `GET /getConfiguration`
+- Auth: required
 - Returns: JSON object with persisted configuration values used by UI and runtime.
 - Includes (non-exhaustive): time/display settings, RGB settings, WiFi/MQTT settings, wake/sleep controls, UI customization values.
+- Includes security flags:
+  - `securityPasswordConfigured`
+  - `securityPasswordWeak`
 
 #### `GET /getSystemInfo`
+- Auth: public when `publicReadApiEnabled=true`; token required when `publicReadApiEnabled=false`
 - Returns: JSON object with diagnostics and capability information.
 - Display: System Info card in web UI showing OS Version, FirmwareID, Chip model, and more
 - Includes (non-exhaustive):
@@ -44,20 +99,23 @@ es.addEventListener('log', e => console.log('log', e.data));
   - network status (`wifiStatus`, `wifiSignal`, `wifiIP`, `wifiSsid`, `macAddress`, `gateway`, `subnet`)
   - WiFi switch state (`wifiSwitchPending`, `wifiSwitchResult`, `wifiSwitchTargetSsid`, `wifiSwitchRollbackRunning`, `wifiSwitchRollbackSsid`)
   - MQTT status (`mqttStatus`)
-  - sensor summary (`temperatureSensors`, `humiditySensors`, `pressureSensors`, `installedSensors`, `physicalSensors`, `virtualSensors`, `gestureSensorPresent`)
+  - sensor summary (`temperatureSensors`, `humiditySensors`, `pressureSensors`, `installedSensors`, `physicalSensors`, `virtualSensors`)
 
 #### `GET /getCurrentInfos`
+- Auth: public when `publicReadApiEnabled=true`; token required when `publicReadApiEnabled=false`
 - Returns: JSON object with high-frequency current values for dashboard.
 - Includes (non-exhaustive): current date/time, sensor values, display state, wake/sleep runtime, LED limiter telemetry.
 - Server-side short cache is used to reduce multi-client load.
 
 #### `GET /getClockDetails`
+- Auth: public when `publicReadApiEnabled=true`; token required when `publicReadApiEnabled=false`
 - Returns: `text/html` block used by the details panel.
 - Includes firmware ID, tube driver, MAC, sensor counts, used pins, and driver setup strings.
 
 ### 3) Settings write endpoints
 
 #### `POST /saveSetting`
+- Auth: required
 - Content type: form-urlencoded (`key`, `value` as POST body params).
 - Required fields:
   - `key`
@@ -70,8 +128,9 @@ es.addEventListener('log', e => console.log('log', e.data));
 Frequently used keys:
 - Display/time: `displayPower`, `manualDisplayOff`, `wakeOnMotionEnabled`, `tubesWakeSeconds`, `enableTimeDisplay`, `manualOverride`, `set12_24`, `enableBlink`, `enableDoubleBlink`
 - Sensors schedule: `dateStart`, `dateEnd`, `tempStart`, `tempEnd`, `humidStart`, `humidEnd`, `pressureStart`, `pressureEnd`, `dateRepeatMin`, `tempRepeatMin`
-- RGB: `rgbEffect`, `rgbBrightness`, `rgbSpeed`, `rgbDir`, `rgbFixR`, `rgbFixG`, `rgbFixB`, `maxLedmA`
+- RGB: `rgbEffect`, `rgbBrightness`, `rgbSpeed`, `rgbDir`, `rgbFixR`, `rgbFixG`, `rgbFixB`, `maxLedmA`, `rgbNightEnabled`
 - Service/runtime: `onboardLed`, `animMode`
+- Security/runtime: `publicReadApiEnabled`, `debugEnabled`
 - WiFi/MQTT: `wifiSsid`, `wifiPsw`, `mqttEnable`, `mqttBrokerAddr`, `mqttBrokerUser`, `mqttBrokerPsw`, `mqttBrokerRefresh`
 - UI theme/layout: `uiWidth`, `uiBgColor`, `uiPanelColor`, `uiAccentColor`, `uiTextColor`
 
@@ -83,6 +142,7 @@ curl -X POST http://CLOCK_IP/saveSetting \
 ```
 
 #### `POST /setManualTime`
+- Auth: required
 - Content type: form-urlencoded.
 - Accepts either:
   - `epoch=<unix_seconds>`
@@ -99,6 +159,7 @@ curl -X POST http://CLOCK_IP/setManualTime -d "date=2026-02-13" -d "time=17:45"
 ### 4) WiFi endpoints
 
 #### `GET /scanWifi`
+- Auth: required
 - Starts async scan if idle, or returns in-progress/cached results.
 - Typical responses:
   - `{\"status\":\"scanning\"}`
@@ -107,12 +168,14 @@ curl -X POST http://CLOCK_IP/setManualTime -d "date=2026-02-13" -d "time=17:45"
   - busy state when WiFi switch/connect is active
 
 #### `GET /connectWifi`
+- Auth: required
 - Query params:
   - `ssid` (required)
   - `psw` (optional)
 - Behavior: starts connect attempt without saving credentials.
 
 #### `POST /connectWifi`
+- Auth: required
 - Body params:
   - `ssid` (required)
   - `psw` (optional)
@@ -120,6 +183,7 @@ curl -X POST http://CLOCK_IP/setManualTime -d "date=2026-02-13" -d "time=17:45"
 - Behavior: starts connect attempt and optionally persists credentials.
 
 #### `GET /wifiStatus`
+- Auth: required
 - Returns connection + switch state JSON.
 - Includes (non-exhaustive):
   - `status`, `statusStr`, `ssid`, `ip`, `rssi`
@@ -135,16 +199,20 @@ curl http://CLOCK_IP/wifiStatus
 ### 5) Control / maintenance
 
 #### `POST /reset`
+- Auth: required
 - Reboots the device.
 
 #### `POST /factoryreset`
+- Auth: required
 - Clears settings to defaults and reboots.
 
 #### `POST /firmwareupdate`
+- Auth: required
 - Queues firmware update task.
 - Returns JSON confirmation message for modal UI.
 
 #### `POST /cathodeProtect`
+- Auth: required
 - Start/stop toggle endpoint.
 - If already running, sends stop request; otherwise starts routine.
 
@@ -157,7 +225,7 @@ curl -X POST http://CLOCK_IP/cathodeProtect
 ```
 
 ### 6) Web UI assets
-- `GET /` → `index.html`
+- `GET /` -> `index.html`
 - `GET /page.js`
 - `GET /site.css`
 - `GET /jquery.js` (alias)
@@ -166,13 +234,17 @@ curl -X POST http://CLOCK_IP/cathodeProtect
 - `GET /favicon.ico`
 
 ### 7) Captive portal / probe handling
-- `GET /generate_204` — captive redirect to local AP page
-- `GET /hotspot-detect.html` — probe response
-- `GET /connecttest.txt` — probe response
+- `GET /generate_204` - captive redirect to local AP page
+- `GET /hotspot-detect.html` - probe response
+- `GET /connecttest.txt` - probe response
 
 ## Implemented In This Session
 
 This section summarizes all functional changes completed in this chat.
+
+### AutoDimmer UI State Restoration
+- Fixed AutoDimmer switch so ON/OFF state is always restored correctly in the web UI after page reload or config fetch.
+- UI now sets the switch based on backend value, ensuring consistent state.
 
 ### 1) RGB Current Limiter + Telemetry
 - Fully wired `maxLedmA` setting end-to-end:
@@ -439,6 +511,142 @@ Enable checklist:
 - Fixed recurring one-frame white flash in flowing effects by changing `WHITE_INDEX` sentinel from `192` to `-2` (avoids collision with normal `0..255` color cycle values).
 - For `CLOCK_54`, simplified display power gating path to avoid motion/radar flapping side effects on PWM state transitions.
 
+### 32) Finalized NCS312 PWM State (Current Stable Baseline)
+- Restored and kept the user-validated PWM implementation in `pwmleds.ino` as the active baseline.
+- `CLOCK_54` boot hold behavior:
+  - `bootPwmOrangeHold` keeps a stable orange background during late boot window.
+  - Blue PWM channel is forced hard LOW during hold, then restored cleanly after hold exits.
+- PWM OFF state is hard electrical OFF (detach + pin LOW) to prevent random blue blinking in night/OFF states.
+- PWM fixed color uses persisted `settings.rgbFixR/G/B` values.
+- PWM-only effect mapping remains active, while unsupported addressable-only behavior is not used for this profile.
+- Alarm tune behavior is now profile-specific:
+  - `CLOCK_54` (NCS312): songs only (`3..9`): PinkPanther, MissionImp, VanessaMae, DasBoot, Scatman, Popcorn, WeWishYou.
+  - Other supported boards keep legacy `0..2` (beep/classic/chime).
+  - Compatibility note: the RTTTL Politone engine is compiled only for `CLOCK_54`; non-Politone profiles are intentionally unchanged.
+
+### 33) Lux Telemetry Fix (AutoDim ON)
+- Fixed lux reporting when AutoDim is enabled:
+  - UI/API now shows the real sensor value via `lxRaw` (can be above `MAXIMUM_LUX`).
+  - Auto-dimming logic still uses clamped `lx` for stable brightness control.
+- `/getConfiguration` and `/getCurrentInfos` now expose `lux` from `lxRaw`.
+- Removed `MAXIMUM_LUX` clipping from raw lux acquisition paths (`luxMeter()` / `getBH1750()`), while keeping a high-value sanity clamp.
+
+### 34) Fix Neopixel Setup Errors (`CLOCK_42a` / `CLOCK_42`)
+- Fixed NeoPixel mapping/setup consistency by driving strip size directly from `tubePixels[]`:
+  - `PixelCount` and `StripPixelCount` now match mapped tube pixels.
+- Hardened active-pixel validation for `CLOCK_42x`:
+  - no dependency on runtime `maxDigits` for deciding whether a pixel is valid.
+- Improved ESP32 output stability for this profile:
+  - uses `NeoEsp32Rmt1Ws2812xMethod` (RMT channel 1),
+  - disables double-show (`NEO_DOUBLE_SHOW = false`) on `CLOCK_42/42a`.
+- Added stronger frame hygiene:
+  - unmapped pixels are explicitly forced to black before every `Show()`.
+- Normalized persisted effect values for `CLOCK_42x` at boot:
+  - EEPROM `rgbEffect` `6` or `10` is remapped to `5` to match runtime handling.
+
+### 35) RGB Night Mode Toggle (UI + Firmware)
+- Added persisted setting `rgbNightEnabled` (stored in `Settings`).
+- Added Display-page switch:
+  - `RGB On/Off (Night Mode)` with standard OFF/ON switch format.
+- Runtime behavior:
+  - if `enableAutoShutoff` is active and clock is in night mode:
+    - `rgbNightEnabled = OFF` -> RGB effects are forced OFF
+    - `rgbNightEnabled = ON` -> RGB effects are allowed during night mode
+- Default is `OFF` (day-only RGB behavior).
+
+### 36) Boot WiFi LED Status Hint (Startup Window)
+- Added boot-time ambient LED status hint right after WiFi startup decision:
+  - AP / AP+STA mode: **Red**
+  - STA connected: **Green**
+  - fallback/unknown: LEDs OFF
+- This runs in the post-test startup phase to give immediate visual network state feedback.
+
+### 37) Security/Auth Phase 1 (Web + API)
+- Added token authentication endpoints:
+  - `POST /auth/login`
+  - `POST /auth/changePassword`
+- Added persistent admin password storage in EEPROM:
+  - `prm.webAdminPassword`
+  - `prm.webPasswordConfigured`
+- Added password policy enforcement for password changes:
+  - min length 10
+  - uppercase + lowercase + digit
+  - no spaces
+- Login response now includes:
+  - `passwordConfigured`
+  - `passwordWeak`
+  - `mustChangePassword`
+- Exposed security state in config responses:
+  - `securityPasswordConfigured`
+  - `securityPasswordWeak`
+- Added route protection for settings/control/maintenance operations via token auth.
+- Added login rate-limit and lockout on `/auth/login` (5 attempts / 5 minutes + 5-minute cooldown).
+- Added runtime switch `publicReadApiEnabled`:
+  - `true`: `/getCurrentInfos`, `/getSystemInfo`, `/getClockDetails` remain public
+  - `false`: those routes require auth token
+- Added production-oriented build controls:
+  - `CLOCKFORGE_PROD` disables remote debug channels by default (SSE `/events`, Telnet `:23`)
+  - CORS defaults to strict mode in PROD (`CORS_ALLOW_ANY_ORIGIN=0`)
+  - optional fixed origin allowlist via `CORS_ALLOWED_ORIGIN`
+- Added optional AP/STA auto policy for read-only endpoint exposure:
+  - `AUTO_PUBLIC_READ_API_BY_WIFI_MODE` (default `0`)
+  - `AUTO_PUBLIC_READ_API_AP_VALUE` (default `1`)
+  - `AUTO_PUBLIC_READ_API_STA_VALUE` (default `0`)
+  - when enabled, firmware automatically toggles `publicReadApiEnabled` based on network mode transitions
+- Production preset note:
+  - when `CLOCKFORGE_PROD` is enabled, `AUTO_PUBLIC_READ_API_BY_WIFI_MODE` defaults to `1`
+  - effective PROD behavior becomes:
+    - AP mode: read-only status endpoints public (onboarding friendly)
+    - STA mode: read-only status endpoints token-protected
+- Backward-compatibility note:
+  - Home Assistant/mobile clients can continue to use existing routes after login, but must send `X-Auth-Token` (or `authToken` fallback).
+
+### CLOCK_42a Boot Display Sequence (what you see)
+```text
+[1] Reset + Boot ROM
+    Tubes: (blank / undefined)
+    LEDs : last retained state (from previous power state)
+
+[2] Firmware banner + pin setup
+    Tubes: mostly blank
+    LEDs : setupNeopixel() runs, initial color/effect frame appears
+
+[3] Pre-test animation window
+    Tubes: minimal activity
+    LEDs : effect starts running (from EEPROM rgbEffect)
+
+[4] Tube self-test: testTubes(300)
+    Tubes: 000000 -> 111111 -> ... -> 999999
+    LEDs : this is the part that works correctly for you
+
+[5] Post-test transition (critical window)
+    Code : clearDigits() -> disableDisplay() -> SPIFFS init ->
+           wifiConnectRunning=true -> startWifiMode()
+    Tubes: mostly blank / short transitions
+    LEDs : this is where your strip freezes (last LED may turn white)
+
+[6] Web/MQTT startup
+    Tubes: still mostly blank
+    LEDs : boot WiFi status hint is shown (AP=red, STA connected=green), then normal effects resume
+
+[7] Speaker boot relatch
+    Code : speakerBootRelatch42a()
+    Tubes: no special visible pattern
+    LEDs : no intended special effect
+
+[8] IP display sequence: showMyIp()
+    Tubes: "IP 192", then "IP 168", then "IP 001", then "IP xxx"
+    LEDs : should animate continuously in background
+
+[9] Time sync
+    Tubes: switch to current time after NTP
+    LEDs : should continue selected effect
+
+[10] Normal runtime loop
+    Tubes: time/date/temp cycles
+    LEDs : selected RGB effect continuously
+```
+
 ## Settings/Schema Notes
 - `Settings` schema was incremented for newly added persisted display fields:
   - display toggles
@@ -452,21 +660,28 @@ Enable checklist:
 The firmware now supports direct Home Assistant integration for the following entity types via the REST API:
 
 **Switches (on/off):**
-- `displayPower` — Display power ON/OFF
-- `nightMode` — Night mode ON/OFF
-- `alarmEnable` — Alarm enabled ON/OFF
-- `showTimeDate` — Show time/date ON/OFF
-- `showTemperature` — Show temperature ON/OFF
-- `showHumidity` — Show humidity ON/OFF
-- `showPressure` — Show pressure ON/OFF
+- `displayPower` - Display power ON/OFF
+- `nightMode` - Night mode ON/OFF
+- `alarmEnable` - Alarm enabled ON/OFF
+- `showTimeDate` - Show time/date ON/OFF
+- `showTemperature` - Show temperature ON/OFF
+- `showHumidity` - Show humidity ON/OFF
+- `showPressure` - Show pressure ON/OFF
 
 **Numbers:**
-- `rgbBrightness` — RGB LED brightness (0–255)
-- `rgbAnimationSpeed` — RGB animation speed (1–255)
+- `rgbBrightness` - RGB LED brightness (0-255)
+- `rgbAnimationSpeed` - RGB animation speed (1-255)
 
 **Selects:**
-- `rgbEffect` — RGB animation effect (integer, see UI for available modes)
+- `rgbEffect` - RGB animation effect (integer, see UI for available modes)
 
 All of these can be read from `/getConfiguration` and set via `/saveSetting` (POST with `key` and `value`).
 
+Authentication note:
+- `/getConfiguration` and `/saveSetting` are protected routes.
+- Home Assistant integrations should first call `POST /auth/login`, then send `X-Auth-Token` on protected requests.
+- If device password is changed, update Home Assistant/add-on credentials accordingly.
+
 This enables robust Home Assistant entity control for display, alarm, and RGB features.
+
+

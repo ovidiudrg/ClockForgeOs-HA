@@ -15,7 +15,7 @@ char tubeDriver[] = "NO_MULTIPLEX_ESP32";
 
 int maxDigits = sizeof(tubes);
 int DRAM_ATTR PWMrefresh=25000;   ////msec, Multiplex time period. Greater value => slower multiplex frequency
-int DRAM_ATTR PWM_min = 5000;
+int DRAM_ATTR PWM_min = 2500;
 int DRAM_ATTR PWM_max = 25000;
 
 //#define dataPin  14  //D5
@@ -149,3 +149,4 @@ void IRAM_ATTR writeDisplay(){        //https://circuits4you.com/2018/01/02/esp8
 
 void IRAM_ATTR clearTubes() {}
 #endif
+

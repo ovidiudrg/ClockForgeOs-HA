@@ -15,7 +15,7 @@ char tubeDriver[] = "NO_MULTIPLEX74141";
 
 int maxDigits = sizeof(tubes);
 int PWMrefresh=12000;   ////msec, Multiplex time period. Greater value => slower multiplex frequency
-int PWM_min = 1000;
+int PWM_min = 1200;
 int PWM_max = 12000;
 //int PWMtiming[11] = {1000,1000,2000,3000,4000,5000,6000,7000,8000,10000,12000};
 
@@ -142,3 +142,4 @@ void ICACHE_RAM_ATTR writeDisplay(){        //https://circuits4you.com/2018/01/0
 
 void clearTubes() {}
 #endif
+

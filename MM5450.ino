@@ -62,7 +62,7 @@ byte charDefinition[] = {
 #define MAXCHARS sizeof(charDefinition)
 
 int PWMrefresh = 10000; ////msec, Multiplex time period. Greater value => slower multiplex frequency
-int PWM_min = 500;
+int PWM_min = 1000;
 int PWM_max = 10000;
 //int PWMtiming[11] = {0,500,800,1200,2000,2500,3000,4500,6000,8000,10000};
 
@@ -193,3 +193,4 @@ void ICACHE_RAM_ATTR writeDisplay() {       // Writes to the MM5450 driver for L
 void clearTubes() {}
 void writeDisplaySingle() {}
 #endif
+

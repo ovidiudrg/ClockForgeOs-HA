@@ -1,3 +1,6 @@
+#ifndef CLOCKFORGE_CLOCKS_H
+#define CLOCKFORGE_CLOCKS_H
+
   /*
  ******************* CLOCK DEFINITIONS ***********************
  * Define here your clock's setup  
@@ -42,7 +45,7 @@
 //#define CLOCK_40  //V1  ESP32, UNFI 6 x IV-11 VFD tubes clock
 //#define CLOCK_41  //V2  ESP32, UNFI 6 x IV-11 VFD tubes clock (átkötés)
 //#define CLOCK_42  //V3  ESP32, UNFI 6 x IV-11 VFD tubes clock
-//#define CLOCK_42a //V3a  ESP32, UNFI 6 x IV-11 VFD tubes clock Custom OD ------
+//#define CLOCK_42a //V3a  ESP32, UNFI 6 x IV-11 VFD tubes clock Custom OD ------<
 //#define CLOCK_43  //V1  ESP32, UNFI 6 x Z573M Nixie tubes
 //#define CLOCK_44  //V2  ESP32, UNFI 6 x Z573M Nixie tubes (átkötés)
 //#define CLOCK_45  //V3  ESP32, UNFI 6 x Z573M Nixie tubes
@@ -55,12 +58,14 @@
 //#define CLOCK_51   //V2  ESP32, UNFI 2xHV5122 PCB version, 6xZ573 clock z574m 
 //#define CLOCK_52   //ESP32,    P.S. 2xHV5122 PCB version, 6xIN18 clock   PROTOTYPE TESTING!!!
 //#define CLOCK_53   //ESP8266,  UNFI 2xHV5122 PCB version, 6xZ573 clock   PROTOTYPE TESTING!!!
-#define CLOCK_54   // D1 R32 ESP32 (Uno compatible), + NCS312 Nixie clock KIT!!!
+//#define CLOCK_54   // D1 R32 ESP32 (Uno compatible), + NCS312 Nixie clock KIT!!!
 //#define CLOCK_55   //ESP8266,  UNFI 2xHV5122 PCB version, 6xZ573 clock
 //#define CLOCK_56   //WROOM ESP32, UNFI 2xHV5122 6xZ573 clock   /flat panel/
 //#define CLOCK_57   //V2-WROOM ESP32, UNFI 2xHV5122 6xZM1000 clock  /flat panel
 //#define CLOCK_57A  //V2-WROOM ESP32, UNFI 2xHV5222 6xZ57xM clock  /flat panel
-//#define CLOCK_64     //ESP32 2xHV52222 6x574m
+#define CLOCK_64     //ESP32 2xHV5122 6x574m ---<
+//#define CLOCK_111    //ESP32 Uniclock IV-111, HV5122 (Nixie: Z574M/Z573M/IN12 families)
+//#define CLOCK_112    //ESP32 Uniclock IV-111, MAX6921_ESP32 (VFD: IV-11/IV-12 families)
 //#define CLOCK_70   //1 tube esp8266 Nixie Clock by UNFI 
 //#define CLOCK_71   //2x VQC10 clock by UNFI 
 //#define CLOCK_72   //ESP32, UNFI board, ZM1500
@@ -1133,6 +1138,7 @@
 #endif
 
 #ifdef CLOCK_42   //V3  ESP32, UNFI 6 x IV-11 VFD tubes clock
+  #define ONBOARD_LED_PIN -1 
   #define DEBUG 
   #define FW "fw42"  //firmware name
   #define MAXBRIGHTNESS 100    
@@ -1158,25 +1164,23 @@
   #define TUBE_POWER_PIN 27
   #define TUBE_POWER_ON  HIGH 
   #define ALARM_ON HIGH         //How to switch ON alarm buzzer
-  #define AP_NAME "NixieCLock"
-  #define AP_PASSWORD ""  
   #define WEBNAME "ESP32 IV-11 VFD-Clock"
-  //#define DEFAULT_SSID ""
-  //#define DEFAULT_PSW ""
-  //#define USE_WIFIMANAGER
-  //#define DISABLE_NIGHT_ANIMATION  
+  #define AP_NAME "NixieCLock"
+  #define AP_PASSWORD "18273645" 
+  #define WEB_ADMIN_PASSWORD "NixieClock" 
 #endif
 
 #ifdef CLOCK_42a   //V3  ESP32, UNFI 6 x IV-11 VFD tubes clock
   #define DEBUG 
   #define FW "fw42v1"  //firmware name
+  //#define WIFI_DISABLE_FOR_TEST  //diagnostic: disable all WiFi/AP/server startup
   #define MAXBRIGHTNESS 100    
   #define USE_NEOPIXEL 
-  #define NEOPIXEL_PIN 25
+  #define NEOPIXEL_PIN 23
   #define USE_RTC
   #define USE_MQTT
   //#define USE_BME280            //I2C Temperature + humidity + pressure
-  #define USE_BMP280            //I2C Temperature + barometric  pressure
+  //#define USE_BMP280            //I2C Temperature + barometric  pressure
   #define USE_AHTX0             //I2C Temperature + humidity
   #define USE_BH1750
   byte tubePixels[] = {0,1,2,3,4,5};    //6 tubes, single leds
@@ -1191,8 +1195,8 @@
     #define PIN_CLK   17  // Shift Register Clock
     #define PIN_DATA  16  // Shift Register Data
     #define PIN_BL    32  // Shift Register Blank (1=display off     0=display on)
-  #define ALARMSPEAKER_PIN 2   //Alarm buzzer pin
-  #define ONBOARD_LED_PIN -1   //Disable onboard LED handling (GPIO2 reserved for speaker)
+  #define ALARMSPEAKER_PIN 26   //Alarm buzzer pin
+  #define ONBOARD_LED_PIN -1  //Disable onboard LED handling (leave GPIO2 untouched)
   #define ALARMBUTTON_PIN 0    //Alarm switch off button pin
   #define TUBE_POWER_PIN 27
   #define TUBE_POWER_ON  HIGH 
@@ -2036,11 +2040,12 @@
   //#define TEMP_CHARCODE 10
   //#define GRAD_CHARCODE 10 
   //#define PERCENT_CHARCODE 10
-  #define AP_NAME "UNFICLOCK"
-  #define AP_PASSWORD "uniclock" 
+  #define AP_NAME "NixieCLock"
+  #define AP_PASSWORD "18273645" 
+  #define WEB_ADMIN_PASSWORD "NixieClock"  // Web UI admin password (change this)
   #define WEBNAME "Z573m Nixie-Clock"
-  #define DEFAULT_SSID ""
-  #define DEFAULT_PSW ""
+  //#define DEFAULT_SSID ""
+  //#define DEFAULT_PSW ""
   //#define USE_WIFIMANAGER  
 #endif
 
@@ -2053,7 +2058,6 @@
   #define USE_RTC
   #define USE_MQTT
   byte tubePixels[] = {0,1,2,3,4,5};        //6 tubes, single leds
-  //#define USE_APDS9960_GESTURE //I2C Gesture sensor. If enabled, you can use it to change brightness, switch on/off tubes, change display modes and so on. You can set the used SDA and SCL pins with PIN_SDA and PIN_SCL defines, if they are not default value (21 and 22).
   //#define USE_DALLAS_TEMP 
   //#define TEMP_DALLAS_PIN 19    //Dallas temp sensor pin.  If not used, SET TO -1   
   #define PIN_SDA 4             // you can set the used SDA and SCL pins
@@ -2499,7 +2503,7 @@
   #define TEMP_DHT_PIN -1     //DHT temp sensor pin.
 #endif
 
-#if defined(USE_BME280) || defined(USE_BMP280) || defined(USE_AHTX0) || defined(USE_SHT21) || defined(USE_BH1750) || defined(USE_RTC) || defined(USE_APDS9960_GESTURE)
+#if defined(USE_BME280) || defined(USE_BMP280) || defined(USE_AHTX0) || defined(USE_SHT21) || defined(USE_BH1750) || defined(USE_RTC)
   #if defined(PIN_SDA) && defined(PIN_SCL)
     #define USE_I2CSENSORS
   #else
@@ -2660,4 +2664,5 @@
   #define DP_PIN   -1        //Decimal Point pin.
 #endif
 //______________________________________________________________________________________
-  
+
+#endif // CLOCKFORGE_CLOCKS_H

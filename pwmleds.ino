@@ -6,8 +6,10 @@
 #define WHITE_INDEX -2
 
 extern bool tubesPowerState;
-extern bool startupMuteRgb;
 extern Settings settings;
+#ifdef CLOCK_54
+static bool pwmBootOrangeHold = false;
+#endif
 
 long pwmBrightness;
 int pwmColorStep = 1;
@@ -215,6 +217,40 @@ void pwmAutoCycle() {
   else idx = (uint8_t)((idx + 6) % 7);
 }
 
+void pwmFireworks() {
+  // Fireworks-style RGB sweep:
+  // R->B, B->G, G->R with 255-step segments.
+  static int rotator = 0;
+  static int cycle = 0;
+  static int red = 255;
+  static int green = 0;
+  static int blue = 0;
+  static const int fw[18] = {
+     0, 0, 1,
+    -1, 0, 0,
+     0, 1, 0,
+     0, 0,-1,
+     1, 0, 0,
+     0,-1, 0
+  };
+
+  red += fw[rotator * 3 + 0];
+  green += fw[rotator * 3 + 1];
+  blue += fw[rotator * 3 + 2];
+  red = constrain(red, 0, 255);
+  green = constrain(green, 0, 255);
+  blue = constrain(blue, 0, 255);
+
+  setPWMrgb((uint8_t)red, (uint8_t)green, (uint8_t)blue, (uint8_t)pwmBrightness);
+
+  cycle++;
+  if (cycle >= 255) {
+    cycle = 0;
+    rotator++;
+    if (rotator > 5) rotator = 0;
+  }
+}
+
 void pwmAlarmLight() {
   static unsigned long lastRun = 0;   
   static byte counter;
@@ -231,18 +267,54 @@ void pwmAlarmLight() {
 
 void doAnimationPWM() {
 static unsigned long lastRun = 0;
+#ifdef CLOCK_54
+static bool bootOrangeApplied = false;
+static bool bootBlueForcedLow = false;
+#endif
 
   if (EEPROMsaving) return;
-  if (startupMuteRgb) {
-    pwmBrightness = 0;
-    forcePwmPinsLowAndDetach();
+  uint8_t activeEffect = prm.rgbEffect;
+#ifdef CLOCK_54
+  // NCS312 PWM profile: keep only OFF(0), Fixed(1), RainbowFlow(2).
+  if (activeEffect > 2) activeEffect = 2;
+#endif
+#ifdef CLOCK_54
+  if (pwmBootOrangeHold) {
+    // Apply orange once when entering boot hold to avoid repetitive PWM updates/glitches.
+    if (!bootOrangeApplied) {
+      reattachPwmPinsIfNeeded();
+      // Keep blue channel electrically hard-low during boot hold to avoid white flashes.
+      #if PWM3_PIN>=0
+        ledcDetachPin(PWM3_PIN);
+        pinMode(PWM3_PIN, OUTPUT);
+        digitalWrite(PWM3_PIN, LOW);
+        bootBlueForcedLow = true;
+      #endif
+      setPWMrgb(255, 96, 0, 80);
+      bootOrangeApplied = true;
+    }
     lastRun = millis();
     return;
   }
+  if (bootBlueForcedLow) {
+    #if PWM3_PIN>=0
+      #ifdef PWM_FREQ
+        const uint32_t pwmFreqRestore = PWM_FREQ;
+      #else
+        const uint32_t pwmFreqRestore = 200;
+      #endif
+      ledcSetup(2, pwmFreqRestore, 8);
+      ledcAttachPin(PWM3_PIN, 2);
+      ledcWrite(2, 0);
+    #endif
+    bootBlueForcedLow = false;
+  }
+  bootOrangeApplied = false;
+#endif
 #ifdef CLOCK_54
-  if ((prm.rgbEffect == 0) || !displayON || !tubesPowerState) {   //switch RGB backlight OFF
+  if ((activeEffect == 0) || !displayON || !tubesPowerState) {   //switch RGB backlight OFF
 #else
-  if ((prm.rgbEffect == 0) || !displayON || !radarON || !tubesPowerState) {   //switch RGB backlight OFF
+  if ((activeEffect == 0) || !displayON || !radarON) {   //switch RGB backlight OFF
 #endif
     pwmBrightness = 0;
     forcePwmPinsLowAndDetach();
@@ -257,10 +329,15 @@ static unsigned long lastRun = 0;
     return;
   }
   
-  if ((prm.rgbEffect <=1) && ((millis()-lastRun)<1000)) return;  //fix color
-  if (prm.rgbEffect == 11 && ((millis()-lastRun)<400)) return;   //auto-cycle
-  if (prm.rgbEffect == 5 && ((millis()-lastRun)<140)) return;    //strobe
-  if ((millis()-lastRun)<max(FPS_MSEC,258-prm.rgbSpeed)) return;
+  if ((activeEffect <=1) && ((millis()-lastRun)<1000)) return;  //fix color
+#ifndef CLOCK_54
+  if (activeEffect == 11 && ((millis()-lastRun)<400)) return;   //auto-cycle
+  if (activeEffect == 5 && ((millis()-lastRun)<140)) return;    //strobe
+#endif
+  // Fireworks timing: fixed 5ms steps, independent from rgbSpeed.
+  if (activeEffect == 9) {
+    if ((millis() - lastRun) < 5) return;
+  } else if ((millis()-lastRun)<max(FPS_MSEC,258-prm.rgbSpeed)) return;
   lastRun = millis();
 
   pwmColorStep = max(1,prm.rgbSpeed/5);
@@ -274,18 +351,24 @@ static unsigned long lastRun = 0;
 
   //DPRINTLN("  NeoBrightness:"); DPRINT(neoBrightness);
   
-  if (prm.rgbEffect == 1) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness); // fixed
-  else if (prm.rgbEffect == 2) pwmRainbow();      // smooth rainbow
-  else if (prm.rgbEffect == 3) pwmRainbowStep();  // stepped rainbow
-  else if (prm.rgbEffect == 4) pwmBreathFixed();  // breathing fixed
-  else if (prm.rgbEffect == 5) pwmStrobeFixed();  // strobe fixed
-  else if (prm.rgbEffect == 6) pwmRandomFade();   // random fade
-  else if (prm.rgbEffect == 7) pwmKitt();         // R/G/B scan
-  else if (prm.rgbEffect == 8) pwmHeartbeat();    // heartbeat fixed
-  else if (prm.rgbEffect == 9) pwmCandle();       // candle
-  else if (prm.rgbEffect == 10) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness); // disabled by request
-  else if (prm.rgbEffect == 11) pwmAutoCycle();   // palette cycle
+#ifdef CLOCK_54
+  if (activeEffect == 1) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness); // fixed
+  else if (activeEffect == 2) pwmRainbow();      // smooth rainbow
   else pwmRainbow();
+#else
+  if (activeEffect == 1) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness); // fixed
+  else if (activeEffect == 2) pwmRainbow();      // smooth rainbow
+  else if (activeEffect == 3) pwmRainbowStep();  // stepped rainbow
+  else if (activeEffect == 4) pwmBreathFixed();  // breathing fixed
+  else if (activeEffect == 5) pwmStrobeFixed();  // strobe fixed
+  else if (activeEffect == 6) pwmRandomFade();   // random fade
+  else if (activeEffect == 7) pwmKitt();         // R/G/B scan
+  else if (activeEffect == 8) pwmHeartbeat();    // heartbeat fixed
+  else if (activeEffect == 10) setPWMrgb(settings.rgbFixR, settings.rgbFixG, settings.rgbFixB, (uint8_t)pwmBrightness); // disabled by request
+  else if (activeEffect == 11) pwmAutoCycle();   // palette cycle
+  else if (activeEffect == 9) pwmFireworks();    // fireworks
+  else pwmRainbow();
+#endif
 }
 
 #else

@@ -29,15 +29,14 @@ void doAnimationMakuna();
 void writeDisplay2();
 void getLightSensor();
 void doAnimationPWM();
+void setupNeopixel();
 void alarmSound();
 void doReset();
 void factoryReset();
 void updateRTC();
+void enableDisplay(unsigned long timeout);
+void disableDisplay();
 void saveRGBSettingsToEEPROM();
-void setupGestureSensor();
-void processGestureSensor();
-bool isGestureSensorPresent();
-void executeGestureMappedAction(uint8_t direction);
 void cycleFixedColorPalette(int step);
 bool isPrintableString(const String& s);
 
@@ -84,7 +83,6 @@ bool isPrintableString(const String& s);
   //#define USE_SHT21       //I2C Temperature + humidity, SDA+SCL I2C pins are used!   
   //#define USE_BH1750      //I2C Luxmeter sensor, SDA+SCL I2C pins are used!   
   //#define USE_RTC         //DS3231 realtime clock, SDA+SCL I2C pins are used!   
-  //#define USE_APDS9960_GESTURE //APDS-9960 gesture sensor (I2C) for hand up/down/left/right actions
   //#define USE_GPS         //use for standalone clock, without wifi internet access
   //#define USE_NEOPIXEL    //WS2812B led stripe, for tubes backlight. Don't forget to define tubePixels[] !
   //#define USE_PWMLEDS     //WWM led driver on 3 pins for RG
@@ -121,6 +119,7 @@ bool isPrintableString(const String& s);
   //#define NEOPIXEL_PIN 3        //8266 Neopixel LEDstripe pin is always the RX pin!!!
   //#define RGB_MIN_BRIGHTNESS 8   //Neopixel leds minimum brightness
   //#define RGB_MAX_BRIGHTNESS 255 //Neopixel leds maximum brightness
+  //#define RGB_AUTODIM_DAY_MIN_PERCENT 25 //Auto dim day floor (% of rgbBrightness when lux is very low)
   //#define RADAR_PIN -1          //Radar sensor pin
   //#define RADAR_TIMEOUT 5     //Automatic switch off tubes (without radar detecting somebody) after xxx min
   //#define TUBE_POWER_PIN -1     //Filament or HV switch ON/OFF pin
@@ -248,8 +247,8 @@ DNSServer dnsServer;
 #include <EEPROM.h>
 #include "ArduinoJson.h"
 
-#if defined(USE_NEOPIXEL) || defined(WORDCLOCK)
-  #include <NeoPixelBrightnessBus.h>
+#if defined(USE_NEOPIXEL) || defined(WORDCLOCK) || defined(CLOCK_42) || defined(CLOCK_42a)
+#include <NeoPixelBrightnessBus.h>
 #endif
 
 extern void ICACHE_RAM_ATTR writeDisplay();
@@ -273,14 +272,55 @@ void handleWifiStatus(AsyncWebServerRequest *request);
 void handleNotFound(AsyncWebServerRequest *request);
 void handleSetManualTime(AsyncWebServerRequest *request);
 void handleAuthLogin(AsyncWebServerRequest *request);
+void handleAuthChangePassword(AsyncWebServerRequest *request);
 
 #ifndef WEB_ADMIN_PASSWORD
   #define WEB_ADMIN_PASSWORD "ChangeMeNow!"  // Fallback only; set WEB_ADMIN_PASSWORD in clocks.h profile
 #endif
 
+#if defined(CLOCKFORGE_PROD)
+  #ifndef ENABLE_REMOTE_DEBUG_CHANNELS
+    #define ENABLE_REMOTE_DEBUG_CHANNELS 0
+  #endif
+  #ifndef CORS_ALLOW_ANY_ORIGIN
+    #define CORS_ALLOW_ANY_ORIGIN 0
+  #endif
+#else
+  #ifndef ENABLE_REMOTE_DEBUG_CHANNELS
+    #define ENABLE_REMOTE_DEBUG_CHANNELS 1
+  #endif
+  #ifndef CORS_ALLOW_ANY_ORIGIN
+    #define CORS_ALLOW_ANY_ORIGIN 1
+  #endif
+#endif
+
+#ifndef CORS_ALLOWED_ORIGIN
+  #define CORS_ALLOWED_ORIGIN ""
+#endif
+
 static String webAuthToken = "";
 static unsigned long webAuthExpireMs = 0;
 static const unsigned long WEB_AUTH_TTL_MS = 30UL * 60UL * 1000UL;
+static const uint8_t WEB_ADMIN_PASSWORD_MIN_LEN = 10;
+static const unsigned long WEB_LOGIN_WINDOW_MS = 5UL * 60UL * 1000UL;
+static const unsigned long WEB_LOGIN_LOCKOUT_MS = 5UL * 60UL * 1000UL;
+static const uint8_t WEB_LOGIN_MAX_ATTEMPTS = 5;
+static const uint8_t WEB_LOGIN_RL_SLOTS = 8;
+
+struct WebLoginRateEntry {
+  bool used;
+  uint32_t ipKey;
+  unsigned long windowStartMs;
+  uint8_t attempts;
+  unsigned long lockUntilMs;
+  unsigned long lastSeenMs;
+};
+
+static WebLoginRateEntry webLoginRate[WEB_LOGIN_RL_SLOTS] = {};
+
+static inline bool remoteDebugChannelsEnabled() {
+  return (ENABLE_REMOTE_DEBUG_CHANNELS != 0);
+}
 
 static String generateWebAuthToken() {
   static const char hex[] = "0123456789abcdef";
@@ -336,6 +376,31 @@ bool isPrintableString(const String& s) {
     if (!isPrintable(s[i])) return false;
   }
   return true;
+}
+
+static bool isWeakKnownWebPassword(const String& password) {
+  if (password.length() == 0) return true;
+  if (password == "ChangeMeNow!") return true;
+  if (password == "NixieClock") return true;
+  if (password == "CLOCKFORGEOS") return true;
+  if (password == "clockforgeos") return true;
+  if (password == "12345678") return true;
+  return false;
+}
+
+static bool isStrongWebPassword(const String& password) {
+  if (password.length() < WEB_ADMIN_PASSWORD_MIN_LEN) return false;
+  bool hasUpper = false;
+  bool hasLower = false;
+  bool hasDigit = false;
+  for (size_t i = 0; i < password.length(); i++) {
+    const char c = password[i];
+    if (!isPrintable(c) || c == ' ') return false;
+    if (c >= 'A' && c <= 'Z') hasUpper = true;
+    else if (c >= 'a' && c <= 'z') hasLower = true;
+    else if (c >= '0' && c <= '9') hasDigit = true;
+  }
+  return hasUpper && hasLower && hasDigit;
 }
 
 static bool isValidTemperatureReading(float value) {
@@ -564,6 +629,8 @@ byte DRAM_ATTR animMask[BUFSIZE];     //0 = no animation mask is used
 extern bool tubesPowerState;
 #ifdef USE_NEOPIXEL
 void darkenNeopixels();
+void showSolidNeopixels(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness);
+static void applyBootWifiLedHint();
 extern volatile uint16_t neoAppliedCurrentmA;
 extern volatile uint8_t neoAppliedBrightness;
 #endif
@@ -572,19 +639,7 @@ extern volatile uint8_t neoAppliedBrightness;
 static inline void writeDisplaySingleGuarded() {
   auto rawWriteFn = &writeDisplaySingle; // keep original driver function
 
-#ifdef USE_NEOPIXEL
-  // Track whether we've already forced LEDs off while the tubes are off,
-  // to avoid calling darkenNeopixels() on every multiplex refresh.
-  static bool ledsForcedOff = false;
-#endif
-
   if (!tubesPowerState) {
-#ifdef USE_NEOPIXEL
-    if (!ledsForcedOff) {
-      darkenNeopixels();
-      ledsForcedOff = true;
-    }
-#endif
     byte saved[BUFSIZE];
     boolean savedDP[BUFSIZE];
     memcpy(saved, digit, sizeof(saved));
@@ -595,9 +650,6 @@ static inline void writeDisplaySingleGuarded() {
     memcpy(digit, saved, sizeof(saved));
     memcpy(digitDP, savedDP, sizeof(savedDP));
   } else {
-#ifdef USE_NEOPIXEL
-    ledsForcedOff = false; // tubes are on again; allow normal LED programs to run
-#endif
     rawWriteFn();
   }
 }
@@ -611,6 +663,7 @@ static inline void rawWrite() {
 volatile boolean dState = false;
 volatile unsigned long lastDisable = 0;
 volatile boolean EEPROMsaving = false; //saving in progress - stop display refresh
+volatile boolean neoShowInProgress = false; //pause multiplex ISR while NeoPixel frame is transmitted
 
 #define MAGIC_VALUE 305   //EEPROM version
 
@@ -660,6 +713,18 @@ struct DebugState {
   unsigned long nowMs;
   unsigned long lastMotionMs;
   unsigned long wakeMs;
+  bool onboardLedRequested;
+  bool onboardLedEffective;
+  bool onboardLedShared;
+  int8_t onboardLedPin;
+  int8_t onboardLedLevel;
+  bool alarmEnabled;
+  bool alarmInProgress;
+  bool speakerLogicalOn;
+  bool speakerToneActive;
+  int8_t speakerPin;
+  int8_t speakerLevel;
+  int8_t speakerWriteLevel;
 };
 static DebugState dbg;
 
@@ -674,11 +739,23 @@ static void debugSnapshot() {
   last = now;
 
   DPRINTF("[DBG] motion=%d sleep=%d wakeOnMotion=%d manualOff=%d enable=%d mqttRadar=%d radarAllowed=%d tubes=%d "
-          "wake=%us left=%us wakeMs=%lu now=%lu lastMotion=%lu time=%s\n",
+          "wake=%us left=%us wakeMs=%lu now=%lu lastMotion=%lu time=%s "
+          "obSet=%d obEff=%d obShared=%d obPin=%d obLvl=%d "
+          "alarmEn=%d alarmOn=%d spkOn=%d spkTone=%d spkPin=%d spkWr=%d spkLvl=%d\n",
           (int)dbg.motion, (int)dbg.tubesSleep, (int)dbg.wakeOnMotionEnabled, (int)dbg.manualDisplayOff,
           (int)dbg.enableTimeDisplay, (int)dbg.mqttRadarON, (int)dbg.radarAllowed, (int)dbg.tubesPowerState,
           (unsigned)dbg.tubesWakeSeconds, (unsigned)dbg.wakeLeftSeconds, dbg.wakeMs,
-          dbg.nowMs, dbg.lastMotionMs, dbgTimeSourceStr(dbg.timeSource));
+          dbg.nowMs, dbg.lastMotionMs, dbgTimeSourceStr(dbg.timeSource),
+          (int)dbg.onboardLedRequested, (int)dbg.onboardLedEffective, (int)dbg.onboardLedShared,
+          (int)dbg.onboardLedPin, (int)dbg.onboardLedLevel,
+          (int)dbg.alarmEnabled, (int)dbg.alarmInProgress,
+          (int)dbg.speakerLogicalOn, (int)dbg.speakerToneActive,
+          (int)dbg.speakerPin, (int)dbg.speakerWriteLevel, (int)dbg.speakerLevel);
+  DPRINTF("[SPK] pin=%d wr=%d lvl=%d on=%d tone=%d alarmEn=%d alarmOn=%d obPin=%d obLvl=%d shared=%d\n",
+          (int)dbg.speakerPin, (int)dbg.speakerWriteLevel, (int)dbg.speakerLevel,
+          (int)dbg.speakerLogicalOn, (int)dbg.speakerToneActive,
+          (int)dbg.alarmEnabled, (int)dbg.alarmInProgress,
+          (int)dbg.onboardLedPin, (int)dbg.onboardLedLevel, (int)dbg.onboardLedShared);
 }
 #else
 static void debugSnapshot() {}
@@ -717,6 +794,7 @@ float temperature[6] = {0,0,0,0,0,0};
 float humid[6] = {0,0,0,0,0,0};  
 float pressur[6] = {0,0,0,0,0,0};  
 int lx = 0;               //Enviroment LUX value, set by Light Sensor
+int lxRaw = 0;            //Raw (unclamped) environment LUX for UI/telemetry
 boolean autoBrightness = false; //Enable automatic brightness levels
 
 static int countValidTemperatureSensors() {
@@ -761,6 +839,11 @@ struct {
   byte alarmHour = 7;              //Alarm time
   byte alarmMin = 0;
   byte alarmPeriod = 15;           //Alarm length, sec
+  #ifdef CLOCK_54
+    byte alarmTune = 3;            //NCS312 songs: 3..9
+  #else
+    byte alarmTune = 1;            //0=beep, 1=classic, 2=chime
+  #endif
 //RGB settings ____________________________________________________________________________________________
   byte rgbEffect = 1;              //0=OFF, 1=FixColor
   byte rgbBrightness = 100;        // 0..255
@@ -828,6 +911,8 @@ struct {
 int magic = MAGIC_VALUE;        //magic value, to check EEPROM version when starting the clock
   // --- New (v8): Manual tubes sleep mode (wake on motion) ---
   bool tubesSleep = false;       //if true, tubes are normally OFF and wake on motion
+  char webAdminPassword[33];
+  uint8_t webPasswordConfigured = 0; //0=fallback macro, 1=use webAdminPassword
 } prm;
 
 #define EEPROM_SIZE (sizeof(prm) + sizeof(Settings))
@@ -853,15 +938,19 @@ bool manualOverride = false;
 // --- New (v8): Tubes sleep / wake-on-motion ---
 bool tubesPowerState = true;         // current HV power state (ON/OFF)
 unsigned long tubesLastMotionMs = 0; //if tubesSleep is enabled, tubes stay ON until this time (millis)
-bool startupMuteRgb = false;         // suppress RGB animations during selected boot phases
 
 bool onboardLedState = false;
+bool onboardLedEffectiveState = false;
 
 #ifndef ONBOARD_LED_PIN
   #if defined(LED_BUILTIN)
-    #define ONBOARD_LED_PIN LED_BUILTIN
+    #if defined(ALARMSPEAKER_PIN) && (ALARMSPEAKER_PIN >= 0) && (LED_BUILTIN == ALARMSPEAKER_PIN)
+      #define ONBOARD_LED_PIN -1
+    #else
+      #define ONBOARD_LED_PIN LED_BUILTIN
+    #endif
   #else
-    #define ONBOARD_LED_PIN 2
+    #define ONBOARD_LED_PIN -1
   #endif
 #endif
 
@@ -869,12 +958,22 @@ bool onboardLedState = false;
   #define ONBOARD_LED_ACTIVE_LOW 0
 #endif
 
+#if defined(ONBOARD_LED_PIN) && defined(ALARMSPEAKER_PIN) && (ONBOARD_LED_PIN >= 0) && (ALARMSPEAKER_PIN >= 0) && (ONBOARD_LED_PIN == ALARMSPEAKER_PIN)
+  #define ONBOARD_LED_SHARED_WITH_ALARM 1
+#else
+  #define ONBOARD_LED_SHARED_WITH_ALARM 0
+#endif
+
 static inline void applyOnboardLedState() {
   #if ONBOARD_LED_PIN >= 0
     pinMode(ONBOARD_LED_PIN, OUTPUT);
     const uint8_t levelOn = ONBOARD_LED_ACTIVE_LOW ? LOW : HIGH;
     const uint8_t levelOff = ONBOARD_LED_ACTIVE_LOW ? HIGH : LOW;
-    digitalWrite(ONBOARD_LED_PIN, onboardLedState ? levelOn : levelOff);
+    const bool effectiveOn = ONBOARD_LED_SHARED_WITH_ALARM ? false : onboardLedState;
+    onboardLedEffectiveState = effectiveOn;
+    digitalWrite(ONBOARD_LED_PIN, effectiveOn ? levelOn : levelOff);
+  #else
+    onboardLedEffectiveState = false;
   #endif
 }
 
@@ -884,6 +983,7 @@ static inline void forceOnboardLedOffEarly() {
     const uint8_t levelOff = ONBOARD_LED_ACTIVE_LOW ? HIGH : LOW;
     digitalWrite(ONBOARD_LED_PIN, levelOff);
   #endif
+  onboardLedEffectiveState = false;
 }
 
 bool initProtectionTimer = false;  // Set true at the top of the hour to synchronize protection timer with clock
@@ -891,6 +991,231 @@ bool initProtectionTimer = false;  // Set true at the top of the hour to synchro
 bool decimalpointON = false;
 bool alarmON = false;             //Alarm in progress
 unsigned long alarmStarted = 0;   //Start timestamp millis()
+int8_t alarmSpeakerLastWriteLevel = -1;
+bool alarmToneActiveState = false;
+
+// CLOCK_42a only: boot-time GPIO2 re-latch to mimic manual UI ON->OFF recovery.
+static inline void speakerBootRelatch42a() {
+  #if defined(CLOCK_42a) && (ALARMSPEAKER_PIN >= 0)
+    pinMode(ALARMSPEAKER_PIN, OUTPUT);
+    digitalWrite(ALARMSPEAKER_PIN, !ALARM_ON);  // OFF baseline
+    delay(10);
+    digitalWrite(ALARMSPEAKER_PIN, ALARM_ON);   // short ON pulse
+    delay(10);
+    digitalWrite(ALARMSPEAKER_PIN, !ALARM_ON);  // final OFF
+    alarmSpeakerLastWriteLevel = (int8_t)(!ALARM_ON);
+    DPRINTLN("[SPK] boot re-latch (ON->OFF) applied for CLOCK_42a");
+  #endif
+}
+
+#if defined(ESP32) && (ALARMSPEAKER_PIN >= 0) && defined(CLOCK_54)
+  // Tune engine (RTTTL / PWM tone output) is intended for Politone-style hardware only.
+  #define ALARM_TUNE_SUPPORTED 1
+#else
+  // Default path for classic active buzzers: legacy ON/OFF alarm cadence.
+  #define ALARM_TUNE_SUPPORTED 0
+#endif
+
+// Alarm tune ID ranges are board-profile specific.
+// CLOCK_54 (NCS312/Politone): songs only (3..9) using RTTTL playback.
+// All other boards: legacy range 0..2 (beep/classic/chime).
+#ifdef CLOCK_54
+  #define ALARM_TUNE_MIN 3
+  #define ALARM_TUNE_MAX 9
+  #define ALARM_TUNE_DEFAULT 3
+#else
+  #define ALARM_TUNE_MIN 0
+  #define ALARM_TUNE_MAX 2
+  #define ALARM_TUNE_DEFAULT 1
+#endif
+
+#if defined(ESP32) && (ALARMSPEAKER_PIN >= 0)
+static const uint8_t ALARM_TONE_CHANNEL = 7;  // keep separate from RGB PWM channels 0..2
+static bool alarmToneReady = false;
+
+static inline void alarmToneEnsureReady() {
+  if (alarmToneReady) return;
+  ledcSetup(ALARM_TONE_CHANNEL, 2000, 10);
+  ledcAttachPin(ALARMSPEAKER_PIN, ALARM_TONE_CHANNEL);
+  ledcWrite(ALARM_TONE_CHANNEL, 0);
+  alarmToneReady = true;
+}
+
+static inline void alarmTonePlay(uint16_t freqHz) {
+  alarmToneEnsureReady();
+  if (freqHz == 0) {
+    ledcWriteTone(ALARM_TONE_CHANNEL, 0);
+    ledcWrite(ALARM_TONE_CHANNEL, 0);
+    alarmToneActiveState = false;
+    return;
+  }
+  ledcWriteTone(ALARM_TONE_CHANNEL, freqHz);
+  ledcWrite(ALARM_TONE_CHANNEL, 512); // 50% duty at 10-bit
+  alarmToneActiveState = true;
+}
+
+static inline void alarmToneStop() {
+  if (!alarmToneReady) return;
+  ledcWriteTone(ALARM_TONE_CHANNEL, 0);
+  ledcWrite(ALARM_TONE_CHANNEL, 0);
+  alarmToneActiveState = false;
+}
+
+#ifdef CLOCK_54
+// CLOCK_54 only: original RTTTL song bank used by Politone-style alarms.
+static const char kAlarmSongPinkPanther[] = "PinkPanther:d=4,o=5,b=160:8d#,8e,2p,8f#,8g,2p,8d#,8e,16p,8f#,8g,16p,8c6,8b,16p,8d#,8e,16p,8b,2a#,2p,16a,16g,16e,16d,2e";
+static const char kAlarmSongMissionImp[] = "MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d";
+static const char kAlarmSongVanessaMae[] = "VanessaMae:d=4,o=6,b=70:32c7,32b,16c7,32g,32p,32g,32p,32d#,32p,32d#,32p,32c,32p,32c,32p,32c7,32b,16c7,32g#,32p,32g#,32p,32f,32p,16f,32c,32p,32c,32p,32c7,32b,16c7,32g,32p,32g,32p,32d#,32p,32d#,32p,32c,32p,32c,32p,32g,32f,32d#,32d,32c,32d,32d#,32c,32d#,32f,16g,8p,16d7,32c7,32d7,32a#,32d7,32a,32d7,32g,32d7,32d7,32p,32d7,32p,32d7,32p,16d7,32c7,32d7,32a#,32d7,32a,32d7,32g,32d7,32d7,32p,32d7,32p,32d7,32p,32g,32f,32d#,32d,32c,32d,32d#,32c,32d#,32f,16c";
+static const char kAlarmSongDasBoot[] = "DasBoot:d=4,o=5,b=100:d#.4,8d4,8c4,8d4,8d#4,8g4,a#.4,8a4,8g4,8a4,8a#4,8d,2f.,p,f.4,8e4,8d4,8e4,8f4,8a4,c.,8b4,8a4,8b4,8c,8e,2g.,2p";
+static const char kAlarmSongScatman[] = "Scatman:d=4,o=5,b=200:8b,16b,32p,8b,16b,32p,8b,2d6,16p,16c#.6,16p.,8d6,16p,16c#6,8b,16p,8f#,2p.,16c#6,8p,16d.6,16p.,16c#6,16b,8p,8f#,2p,32p,2d6,16p,16c#6,8p,16d.6,16p.,16c#6,16a.,16p.,8e,2p.,16c#6,8p,16d.6,16p.,16c#6,16b,8p,8b,16b,32p,8b,16b,32p,8b,2d6,16p,16c#.6,16p.,8d6,16p,16c#6,8b,16p,8f#,2p.,16c#6,8p,16d.6,16p.,16c#6,16b,8p,8f#,2p,32p,2d6,16p,16c#6,8p,16d.6,16p.,16c#6,16a.,16p.,8e,2p.,16c#6,8p,16d.6,16p.,16c#6,16a,8p,8e,2p,32p,16f#.6,16p.,16b.,16p.";
+static const char kAlarmSongPopcorn[] = "Popcorn:d=4,o=5,b=160:8c6,8a#,8c6,8g,8d#,8g,c,8c6,8a#,8c6,8g,8d#,8g,c,8c6,8d6,8d#6,16c6,8d#6,16c6,8d#6,8d6,16a#,8d6,16a#,8d6,8c6,8a#,8g,8a#,c6";
+static const char kAlarmSongWeWishYou[] = "WeWishYou:d=4,o=5,b=200:d,g,8g,8a,8g,8f#,e,e,e,a,8a,8b,8a,8g,f#,d,d,b,8b,8c6,8b,8a,g,e,d,e,a,f#,2g,d,g,8g,8a,8g,8f#,e,e,e,a,8a,8b,8a,8g,f#,d,d,b,8b,8c6,8b,8a,g,e,d,e,a,f#,1g,d,g,g,g,2f#,f#,g,f#,e,2d,a,b,8a,8a,8g,8g,d6,d,d,e,a,f#,2g";
+
+struct AlarmRtttlState {
+  const char* loopStart = nullptr;
+  const char* notePtr = nullptr;
+  uint16_t defaultDur = 4;
+  uint8_t defaultOct = 6;
+  uint16_t bpm = 63;
+  uint32_t wholeNoteMs = 0;
+  uint32_t nextNoteMs = 0;
+  bool valid = false;
+};
+
+static AlarmRtttlState alarmRtttl;
+static const char* alarmRtttlActiveSong = nullptr;
+
+// 1..48: C4..B7 (index 0 is rest).
+static const uint16_t kAlarmRtttlNotes[] = {
+  0,
+  262,277,294,311,330,349,370,392,415,440,466,494,
+  523,554,587,622,659,698,740,784,831,880,932,988,
+  1047,1109,1175,1245,1319,1397,1480,1568,1661,1760,1865,1976,
+  2093,2217,2349,2489,2637,2794,2960,3136,3322,3520,3729,3951
+};
+
+static inline bool alarmRtttlIsDigit(char ch) {
+  return (ch >= '0') && (ch <= '9');
+}
+
+// Tune IDs 3..9 map to the UI song labels for CLOCK_54 only.
+static const char* alarmRtttlSongByTune(uint8_t tune) {
+  switch (tune) {
+    case 3: return kAlarmSongPinkPanther;
+    case 4: return kAlarmSongMissionImp;
+    case 5: return kAlarmSongVanessaMae;
+    case 6: return kAlarmSongDasBoot;
+    case 7: return kAlarmSongScatman;
+    case 8: return kAlarmSongPopcorn;
+    case 9: return kAlarmSongWeWishYou;
+    default: return kAlarmSongPinkPanther;
+  }
+}
+
+static void alarmRtttlStart(const char* song) {
+  alarmRtttlActiveSong = song;
+  alarmRtttl.loopStart = nullptr;
+  alarmRtttl.notePtr = nullptr;
+  alarmRtttl.defaultDur = 4;
+  alarmRtttl.defaultOct = 6;
+  alarmRtttl.bpm = 63;
+  alarmRtttl.wholeNoteMs = 0;
+  alarmRtttl.nextNoteMs = 0;
+  alarmRtttl.valid = false;
+
+  if (song == nullptr || *song == '\0') return;
+
+  const char* p = song;
+  while (*p && *p != ':') p++;
+  if (*p != ':') return;
+  p++; // skip "name:"
+
+  if (*p == 'd' && p[1] == '=') {
+    p += 2;
+    uint16_t num = 0;
+    while (alarmRtttlIsDigit(*p)) num = (uint16_t)(num * 10 + (uint16_t)(*p++ - '0'));
+    if (num > 0) alarmRtttl.defaultDur = num;
+    if (*p == ',') p++;
+  }
+  if (*p == 'o' && p[1] == '=') {
+    p += 2;
+    if (alarmRtttlIsDigit(*p)) alarmRtttl.defaultOct = (uint8_t)(*p++ - '0');
+    if (*p == ',') p++;
+  }
+  if (*p == 'b' && p[1] == '=') {
+    p += 2;
+    uint16_t num = 0;
+    while (alarmRtttlIsDigit(*p)) num = (uint16_t)(num * 10 + (uint16_t)(*p++ - '0'));
+    if (num > 0) alarmRtttl.bpm = num;
+    if (*p == ':') p++;
+  }
+
+  if (alarmRtttl.bpm == 0) return;
+  alarmRtttl.wholeNoteMs = (uint32_t)((60UL * 1000UL / alarmRtttl.bpm) * 4UL);
+  alarmRtttl.loopStart = p;
+  alarmRtttl.notePtr = p;
+  alarmRtttl.valid = (alarmRtttl.loopStart != nullptr);
+}
+
+static void alarmRtttlStep(uint32_t nowMs) {
+  if (!alarmRtttl.valid || alarmRtttl.notePtr == nullptr) return;
+  if (nowMs < alarmRtttl.nextNoteMs) return;
+
+  const char* p = alarmRtttl.notePtr;
+  while (*p == ' ' || *p == '\r' || *p == '\n' || *p == '\t') p++;
+  if (*p == '\0') {
+    p = alarmRtttl.loopStart;
+    while (*p == ' ' || *p == '\r' || *p == '\n' || *p == '\t') p++;
+    if (*p == '\0') {
+      alarmToneStop();
+      return;
+    }
+  }
+
+  uint16_t num = 0;
+  while (alarmRtttlIsDigit(*p)) num = (uint16_t)(num * 10 + (uint16_t)(*p++ - '0'));
+
+  uint32_t durMs = (num > 0) ? (alarmRtttl.wholeNoteMs / num) : (alarmRtttl.wholeNoteMs / alarmRtttl.defaultDur);
+  uint8_t note = 0;
+
+  switch (*p) {
+    case 'c': note = 1; break;
+    case 'd': note = 3; break;
+    case 'e': note = 5; break;
+    case 'f': note = 6; break;
+    case 'g': note = 8; break;
+    case 'a': note = 10; break;
+    case 'b': note = 12; break;
+    case 'p':
+    default:  note = 0; break;
+  }
+  if (*p) p++;
+
+  if (*p == '#') { note++; p++; }
+  if (*p == '.') { durMs += durMs / 2; p++; }
+
+  uint8_t scale = alarmRtttl.defaultOct;
+  if (alarmRtttlIsDigit(*p)) scale = (uint8_t)(*p++ - '0');
+  if (*p == ',') p++;
+
+  alarmRtttl.notePtr = p;
+  if (durMs < 20) durMs = 20;
+  alarmRtttl.nextNoteMs = nowMs + durMs;
+
+  if (note == 0) {
+    alarmToneStop();
+    return;
+  }
+
+  int idx = ((int)scale - 4) * 12 + (int)note;
+  if (idx < 1 || idx >= (int)(sizeof(kAlarmRtttlNotes) / sizeof(kAlarmRtttlNotes[0]))) {
+    alarmToneStop();
+    return;
+  }
+  alarmTonePlay(kAlarmRtttlNotes[idx]);
+}
+#endif // CLOCK_54
+#endif
 
 enum TouchAction : uint8_t {
   TOUCH_ACTION_NONE = 0,
@@ -909,6 +1234,8 @@ enum TouchAction : uint8_t {
   static const uint32_t TOUCH_LONG_PRESS_MS = 700;
   static const uint32_t TOUCH_DOUBLE_PRESS_MS = 350;
   static const uint32_t TOUCH_LOG_INTERVAL_MS = 120;
+  static const uint32_t TOUCH_MIN_PRESS_MS = 35;
+  static const uint16_t TOUCH_HYSTERESIS_COUNTS = 3;
 
   static bool touchPressed = false;
   static bool touchShortPending = false;
@@ -930,6 +1257,7 @@ int lastCathodeProt = -1;
 boolean cathodeProtRunning = false;
 boolean ipShowRunning = false;
 boolean wifiConnectRunning = false;
+boolean bootHintForceRunning = false;
 boolean editorRunning = false;
 
 static void clearLogRing() {
@@ -1081,24 +1409,53 @@ void clearDigits() {
 void Fdelay(unsigned long d) {
   unsigned long dStart = millis();
   bool neopixelsForcedOff = false;
+  bool showBootHint = (wifiConnectRunning || ipShowRunning || bootHintForceRunning);
+  // Keep RGB active during tube self-test; suppress only post-test startup phases.
+  bool suppressAmbientEffects = wifiConnectRunning;
+  #if defined(CLOCK_42) || defined(CLOCK_42a)
+  // These profiles are stable when NeoPixel keeps streaming continuously.
+  // Suppressing updates during IP/WiFi startup can leave the strip in a drifting state.
+  suppressAmbientEffects = false;
+  #endif
 
   #ifdef USE_NEOPIXEL
-  if (tubesPowerState) {
+  if (showBootHint) {
+    applyBootWifiLedHint();
+    neopixelsForcedOff = false;
+  } else if (suppressAmbientEffects) {
+    darkenNeopixels();
+    neopixelsForcedOff = true;
+  } else if (tubesPowerState) {
     doAnimationMakuna();
   } else {
     darkenNeopixels();
     neopixelsForcedOff = true;
   }
   #else
-  doAnimationMakuna();
+  if (!suppressAmbientEffects) {
+    doAnimationMakuna();
+  }
   #endif
   while ((millis() - dStart) < d) {
+    showBootHint = (wifiConnectRunning || ipShowRunning || bootHintForceRunning);
+    suppressAmbientEffects = wifiConnectRunning;
+    #if defined(CLOCK_42) || defined(CLOCK_42a)
+    suppressAmbientEffects = false;
+    #endif
     if (WiFi.getMode() == 2) dnsServer.processNextRequest();
     enableDisplay(2000);
     writeDisplay2();
     getLightSensor();
     #ifdef USE_NEOPIXEL
-    if (tubesPowerState) {
+    if (showBootHint) {
+      applyBootWifiLedHint();
+      neopixelsForcedOff = false;
+    } else if (suppressAmbientEffects) {
+      if (!neopixelsForcedOff) {
+        darkenNeopixels();
+        neopixelsForcedOff = true;
+      }
+    } else if (tubesPowerState) {
       neopixelsForcedOff = false;
       doAnimationMakuna();
     } else {
@@ -1108,9 +1465,11 @@ void Fdelay(unsigned long d) {
       }
     }
     #else
-    doAnimationMakuna();
+    if (!suppressAmbientEffects) {
+      doAnimationMakuna();
+    }
     #endif
-    if (tubesPowerState) {
+    if (tubesPowerState && !suppressAmbientEffects) {
       doAnimationPWM();
     }
     alarmSound();
@@ -1135,6 +1494,18 @@ static bool parseBool(const String &v, bool defaultValue=false) {
   if (s == "true" || s == "1" || s == "on" || s == "yes")  return true;
   if (s == "false" || s == "0" || s == "off" || s == "no") return false;
   return defaultValue;
+}
+
+static String getEffectiveWebAdminPassword() {
+  if (prm.webPasswordConfigured == 1) {
+    String persisted = String(prm.webAdminPassword);
+    if (isStrongWebPassword(persisted)) return persisted;
+  }
+  return String(WEB_ADMIN_PASSWORD);
+}
+
+static bool hasWeakEffectiveWebPassword() {
+  return isWeakKnownWebPassword(getEffectiveWebAdminPassword());
 }
 
 //--------------------------------------------------------------------------------------------------------------------
@@ -1305,9 +1676,9 @@ void startWifiMode() {
   }
   WiFi.disconnect(true);
   //WiFi.mode(WIFI_OFF);
-  delay(100);
+  Fdelay(100);
   WiFi.mode(WIFI_STA);
-  delay(100);
+  Fdelay(100);
   //Fdelay(1000);
   #if defined(ESP32)
     WiFi.setHostname(webName);
@@ -1330,7 +1701,7 @@ void startWifiMode() {
     DPRINT('.');
     //playTubes();
     //Fdelay(3000);
-    delay(1000);
+    Fdelay(1000);
     if (counter++>10) {
       wifiManager();
       return;
@@ -1571,6 +1942,11 @@ events.onConnect([](AsyncEventSourceClient *client){
 });
 
   DPRINTLN("Starting Async Webserver...");
+  // Allow web/mobile clients running from a different origin (e.g. Flutter web on localhost).
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token");
+  DefaultHeaders::Instance().addHeader("Access-Control-Max-Age", "600");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     disableDisplay();
@@ -1733,6 +2109,7 @@ events.onConnect([](AsyncEventSourceClient *client){
   });
 
   server.on("/auth/login", HTTP_POST, handleAuthLogin);
+  server.on("/auth/changePassword", HTTP_POST, handleAuthChangePassword);
 
   server.on("/saveSetting", HTTP_POST, [](AsyncWebServerRequest *request){
     if (!requireWebAuth(request)) return;
@@ -1776,6 +2153,11 @@ events.onConnect([](AsyncEventSourceClient *client){
 }  //end of procedure
 
 void handleNotFound(AsyncWebServerRequest *request) {
+  if (request->method() == HTTP_OPTIONS) {
+    request->send(204);
+    return;
+  }
+
   auto getMimeType = [](const String& path) -> const char* {
     if (path.endsWith(".html") || path.endsWith(".htm")) return "text/html";
     if (path.endsWith(".css")) return "text/css";
@@ -1841,7 +2223,7 @@ void handleAuthLogin(AsyncWebServerRequest *request) {
   }
 
   String password = request->getParam("password", true)->value();
-  if (password != String(WEB_ADMIN_PASSWORD)) {
+  if (password != getEffectiveWebAdminPassword()) {
     request->send(401, "application/json", "{\"error\":\"invalid_password\"}");
     return;
   }
@@ -1853,6 +2235,54 @@ void handleAuthLogin(AsyncWebServerRequest *request) {
   doc["ok"] = true;
   doc["token"] = webAuthToken;
   doc["ttlSec"] = (WEB_AUTH_TTL_MS / 1000UL);
+  doc["passwordConfigured"] = (prm.webPasswordConfigured == 1);
+  doc["passwordWeak"] = hasWeakEffectiveWebPassword();
+  doc["mustChangePassword"] = hasWeakEffectiveWebPassword();
+  String json;
+  serializeJson(doc, json);
+  request->send(200, "application/json", json);
+}
+
+void handleAuthChangePassword(AsyncWebServerRequest *request) {
+  if (!request->hasParam("currentPassword", true) || !request->hasParam("newPassword", true)) {
+    request->send(400, "application/json", "{\"error\":\"missing_parameters\"}");
+    return;
+  }
+
+  String currentPassword = request->getParam("currentPassword", true)->value();
+  String newPassword = request->getParam("newPassword", true)->value();
+  String effectivePassword = getEffectiveWebAdminPassword();
+
+  if (currentPassword != effectivePassword) {
+    request->send(401, "application/json", "{\"error\":\"invalid_current_password\"}");
+    return;
+  }
+
+  if (!isStrongWebPassword(newPassword)) {
+    request->send(400, "application/json", "{\"error\":\"weak_password\",\"hint\":\"min10_with_upper_lower_digit\"}");
+    return;
+  }
+
+  if (newPassword == effectivePassword) {
+    request->send(400, "application/json", "{\"error\":\"same_password\"}");
+    return;
+  }
+
+  newPassword.toCharArray(prm.webAdminPassword, sizeof(prm.webAdminPassword));
+  prm.webAdminPassword[sizeof(prm.webAdminPassword) - 1] = '\0';
+  prm.webPasswordConfigured = 1;
+  requestSaveEEPROM();
+
+  // Rotate auth token after password change.
+  webAuthToken = generateWebAuthToken();
+  webAuthExpireMs = millis() + WEB_AUTH_TTL_MS;
+
+  DynamicJsonDocument doc(256);
+  doc["ok"] = true;
+  doc["token"] = webAuthToken;
+  doc["ttlSec"] = (WEB_AUTH_TTL_MS / 1000UL);
+  doc["passwordConfigured"] = true;
+  doc["passwordWeak"] = false;
   String json;
   serializeJson(doc, json);
   request->send(200, "application/json", json);
@@ -1965,38 +2395,6 @@ void handleConfigChanged(AsyncWebServerRequest *request) {
       prm.touchLongAction = (uint8_t)action;
     }
 
-    else if (key == "gestureUpAction") {
-      int action = value.toInt();
-      if (action < TOUCH_ACTION_NONE) action = TOUCH_ACTION_NONE;
-      if (action > TOUCH_ACTION_COLOR_PREV) action = TOUCH_ACTION_COLOR_PREV;
-      settings.gestureUpAction = (uint8_t)action;
-      settingsMarkDirty();
-    }
-
-    else if (key == "gestureDownAction") {
-      int action = value.toInt();
-      if (action < TOUCH_ACTION_NONE) action = TOUCH_ACTION_NONE;
-      if (action > TOUCH_ACTION_COLOR_PREV) action = TOUCH_ACTION_COLOR_PREV;
-      settings.gestureDownAction = (uint8_t)action;
-      settingsMarkDirty();
-    }
-
-    else if (key == "gestureLeftAction") {
-      int action = value.toInt();
-      if (action < TOUCH_ACTION_NONE) action = TOUCH_ACTION_NONE;
-      if (action > TOUCH_ACTION_COLOR_PREV) action = TOUCH_ACTION_COLOR_PREV;
-      settings.gestureLeftAction = (uint8_t)action;
-      settingsMarkDirty();
-    }
-
-    else if (key == "gestureRightAction") {
-      int action = value.toInt();
-      if (action < TOUCH_ACTION_NONE) action = TOUCH_ACTION_NONE;
-      if (action > TOUCH_ACTION_COLOR_PREV) action = TOUCH_ACTION_COLOR_PREV;
-      settings.gestureRightAction = (uint8_t)action;
-      settingsMarkDirty();
-    }
-
 else if (key == "debugEnabled") {
   const bool en = parseBool(value, false);
   uiDebugEnabled = en;
@@ -2008,6 +2406,10 @@ else if (key == "debugEnabled") {
 
     else if (key == "onboardLed") {
       onboardLedState = parseBool(value, false);
+      #if ONBOARD_LED_SHARED_WITH_ALARM
+        // Safety: never allow ON drive when LED and alarm share the same GPIO net.
+        onboardLedState = false;
+      #endif
       applyOnboardLedState();
       doSave = false; // runtime-only
     }
@@ -2111,6 +2513,14 @@ else if (key == "dayTimeHours")   {
       settingsDirty = true;
       requestSaveEEPROM();
     }
+    else if (key == "alarmTune") {
+      int v = value.toInt();
+      if (v < ALARM_TUNE_MIN) v = ALARM_TUNE_MIN;
+      if (v > ALARM_TUNE_MAX) v = ALARM_TUNE_MAX;
+      prm.alarmTune = (byte)v;
+      settingsDirty = true;
+      requestSaveEEPROM();
+    }
 
     //RGB LED values
     else if (key == "rgbEffect")     {
@@ -2181,6 +2591,13 @@ else if (key == "rgbSpeed")      {
     else if (key == "rgbMinBrightness") {
       c_MinBrightness = value.toInt();
     }
+    else if (key == "rgbAutoDimDayMinPercent") {
+      int v = value.toInt();
+      if (v < 0) v = 0;
+      if (v > 100) v = 100;
+      settings.rgbAutoDimDayMinPercent = (uint8_t)v;
+      settingsMarkDirty();
+    }
     else if (key == "wifiSsid") {
       value.toCharArray(prm.wifiSsid,sizeof(prm.wifiSsid));
     }
@@ -2188,8 +2605,9 @@ else if (key == "rgbSpeed")      {
       value.toCharArray(prm.wifiPsw,sizeof(prm.wifiPsw));
     }
     else if (key == "ApSsid") {
-      for (int i=0;i<(int)strlen(prm.ApSsid);i++) {  //repair bad chars in AP SSID
-        if ((prm.ApSsid[i]<32) || (prm.ApSsid[i]>126)) prm.ApSsid[i]='_';
+      // Sanitize incoming AP SSID text without touching existing EEPROM data first.
+      for (size_t i = 0; i < value.length(); i++) {
+        if (!isPrintable(value[i])) value.setCharAt(i, '_');
       }
       value.toCharArray(prm.ApSsid,sizeof(prm.ApSsid));
     }
@@ -2294,6 +2712,10 @@ else if (key == "rgbSpeed")      {
     }
     else if (key == "enablePressDisplay") {
       settings.enablePressDisplay = (value == "true");
+      settingsMarkDirty();
+    }
+    else if (key == "rgbNightEnabled") {
+      settings.rgbNightEnabled = parseBool(value, false) ? 1 : 0;
       settingsMarkDirty();
     }
     else if (key == "enableAutoDim" || key == "autoDim" || key == "autoDimming" || key == "enableAutoDimming" || key == "enableAutoDimmingByLux") {
@@ -2466,21 +2888,36 @@ void handleSetManualTime(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "Ok");
 }
 
+static const char* getUiDefaultThemeForProfile() {
+  #if defined(MAX6921) || defined(MAX6921_ESP32) || defined(SN75512) || defined(SN75518_ESP32) || defined(PT6311) || defined(PT6355)
+    return "vfd";
+  #else
+    return "retro";
+  #endif
+}
+
 void handleSendPublicConfig(AsyncWebServerRequest *request) {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<768> doc;
 
   doc["version"] = webName;
   doc["FW"] = FW;
   doc["tubeDriver"] = tubeDriver;
   doc["maxDigits"] = maxDigits;
   doc["maxBrightness"] = MAXBRIGHTNESS;
+  doc["uiDefaultTheme"] = getUiDefaultThemeForProfile();
+  doc["corrT0"] = prm.corrT0;
+  doc["corrT1"] = prm.corrT1;
+  doc["corrH0"] = prm.corrH0;
+  doc["corrH1"] = prm.corrH1;
+  doc["cathProtMin"] = cathProtMin;
+  doc["securityPasswordConfigured"] = (prm.webPasswordConfigured == 1);
+  doc["securityPasswordWeak"] = hasWeakEffectiveWebPassword();
 
   if (settings.uiWidth == 0xFFFF) {
     doc["uiWidth"] = "100%";
   } else {
     doc["uiWidth"] = settings.uiWidth;
   }
-
   char uiBgHex[8];
   sprintf(uiBgHex, "#%02X%02X%02X", settings.uiBgR, settings.uiBgG, settings.uiBgB);
   doc["uiBgColor"] = uiBgHex;
@@ -2514,6 +2951,9 @@ void handleSendConfig(AsyncWebServerRequest *request) {
   doc["tubeDriver"] = tubeDriver;
   doc["maxDigits"] = maxDigits;   //number of digits (tubes)
   doc["maxBrightness"] = MAXBRIGHTNESS; //Maximum tube brightness usually 10, sometimes 12
+  doc["uiDefaultTheme"] = getUiDefaultThemeForProfile();
+  doc["securityPasswordConfigured"] = (prm.webPasswordConfigured == 1);
+  doc["securityPasswordWeak"] = hasWeakEffectiveWebPassword();
 
   //Actual time and environment data
   sprintf(buf, "%4d.%02d.%02d", year(), month(), day());
@@ -2534,7 +2974,8 @@ void handleSendConfig(AsyncWebServerRequest *request) {
   doc["wakeOnMotionEnabled"] = prm.wakeOnMotionEnabled;
   doc["tubesWakeSeconds"] = prm.tubesWakeSeconds;
   doc["manualDisplayOff"] = prm.manualDisplayOff;
-  doc["onboardLed"] = onboardLedState;
+  doc["onboardLed"] = (bool)(ONBOARD_LED_SHARED_WITH_ALARM ? false : onboardLedState);
+  doc["onboardLedSupported"] = (bool)(!ONBOARD_LED_SHARED_WITH_ALARM && (ONBOARD_LED_PIN >= 0));
   //DPRINT("useTemp:"); DPRINT(useTemp); DPRINT("useHumid:"); DPRINT(useHumid);
   if (useTemp > 0) {
     doc["temperature"] = round1(temperature[0] + prm.corrT0);  
@@ -2567,7 +3008,7 @@ void handleSendConfig(AsyncWebServerRequest *request) {
     doc["pressure"] = 255;
     
   if (useLux>0) {
-    doc["lux"] = lx;
+    doc["lux"] = lxRaw;
   }
   else
     doc["lux"] = 255;
@@ -2591,11 +3032,6 @@ void handleSendConfig(AsyncWebServerRequest *request) {
   doc["touchShortAction"] = prm.touchShortAction;
   doc["touchDoubleAction"] = prm.touchDoubleAction;
   doc["touchLongAction"] = prm.touchLongAction;
-  doc["gestureUpAction"] = settings.gestureUpAction;
-  doc["gestureDownAction"] = settings.gestureDownAction;
-  doc["gestureLeftAction"] = settings.gestureLeftAction;
-  doc["gestureRightAction"] = settings.gestureRightAction;
-  doc["gestureSensorPresent"] = isGestureSensorPresent();
   sprintf(buf, "%02d:%02d", prm.dayHour, prm.dayMin);
   doc["dayTime"] = buf;
   sprintf(buf, "%02d:%02d", prm.nightHour, prm.nightMin);
@@ -2609,6 +3045,10 @@ void handleSendConfig(AsyncWebServerRequest *request) {
   sprintf(buf, "%02d:%02d", prm.alarmHour, prm.alarmMin);
   doc["alarmTime"] = buf;
   doc["alarmPeriod"] = prm.alarmPeriod;
+  doc["alarmTune"] = prm.alarmTune;
+  doc["alarmTuneSupported"] = (bool)ALARM_TUNE_SUPPORTED;
+  doc["alarmTuneMin"] = (int)ALARM_TUNE_MIN;
+  doc["alarmTuneMax"] = (int)ALARM_TUNE_MAX;
 
     // Home Assistant exposed settings
     doc["showTimeDate"] = prm.enableTimeDisplay;
@@ -2629,6 +3069,8 @@ void handleSendConfig(AsyncWebServerRequest *request) {
   doc["rgbFixR"] = settings.rgbFixR;   // Fixed color R component (persisted)
   doc["rgbFixG"] = settings.rgbFixG;   // Fixed color G component (persisted)
   doc["rgbFixB"] = settings.rgbFixB;   // Fixed color B component (persisted)
+  doc["rgbAutoDimDayMinPercent"] = settings.rgbAutoDimDayMinPercent; // 0..100
+  doc["rgbNightEnabled"] = (bool)(settings.rgbNightEnabled != 0);
   doc["rgbSpeed"] = prm.rgbSpeed;       // 1..255
   doc["rgbDir"] = prm.rgbDir;          // 0 = right direction, 1 = left direction
   doc["rgbMinBrightness"] = c_MinBrightness;  //minimum brightness for range check!!
@@ -2712,14 +3154,15 @@ doc["corrT0"] = prm.corrT0;
   doc["corrT1"] = prm.corrT1;
   doc["corrH0"] = prm.corrH0;
   doc["corrH1"] = prm.corrH1;
-  doc["cathProtMin"] = 3;   //default value for cathProtMin slider
+  doc["cathProtMin"] = cathProtMin;
   String json;
   
 // --- extras for MAIN status / time source ---
 doc["manualDisplayOff"] = prm.manualDisplayOff;
 doc["wakeOnMotionEnabled"] = prm.wakeOnMotionEnabled;
 doc["tubesWakeSeconds"] = prm.tubesWakeSeconds;
-doc["onboardLed"] = onboardLedState;
+doc["onboardLed"] = (bool)(ONBOARD_LED_SHARED_WITH_ALARM ? false : onboardLedState);
+doc["onboardLedSupported"] = (bool)(!ONBOARD_LED_SHARED_WITH_ALARM && (ONBOARD_LED_PIN >= 0));
 
   // (removed duplicate timeSource/wakeSecondsLeft block)
 
@@ -2867,10 +3310,8 @@ void handleSendSystemInfo(AsyncWebServerRequest *request) {
   if (BH1750exist) addInstalledSensor("BH1750");
   if (RTCexist) addInstalledSensor(RTCisPCF8563 ? "RTC PCF8563" : "RTC DS3231");
   if (LDRexist) addInstalledSensor("LDR");
-  if (isGestureSensorPresent()) addInstalledSensor("APDS-9960 Gesture");
   doc["installedSensors"] = installedSensors.length() ? installedSensors : "None detected";
   doc["physicalSensors"] = installedSensors.length() ? installedSensors : "None detected";
-  doc["gestureSensorPresent"] = isGestureSensorPresent();
 
   String virtualSensors = "";
   auto addVirtualSensor = [&](const char* name) {
@@ -2922,6 +3363,25 @@ void handleSendSystemInfo(AsyncWebServerRequest *request) {
     }
   }
   #endif
+
+  // MAX6921 pin settings (segment/digit maps + control pins)
+  #if defined(MAX6921) || defined(MAX6921_ESP32)
+  JsonArray maxSeg = doc.createNestedArray("max6921SegmentPins");
+  for (int i = 0; i < 8; i++) {
+    maxSeg.add(segmentEnablePins[i]);
+  }
+  JsonArray maxDig = doc.createNestedArray("max6921DigitPins");
+  for (int i = 0; i < maxDigits; i++) {
+    maxDig.add(digitEnablePins[i]);
+  }
+  JsonObject maxCtrl = doc.createNestedObject("max6921ControlPins");
+  maxCtrl["PIN_LE"] = PIN_LE;
+  maxCtrl["PIN_CLK"] = PIN_CLK;
+  maxCtrl["PIN_DATA"] = PIN_DATA;
+  maxCtrl["PIN_BL"] = PIN_BL;
+  #endif
+
+  doc["driverSetupStr"] = driverSetupStr;
 
   String json;
   serializeJson(doc, json);
@@ -3201,10 +3661,10 @@ void handleSendCurrentInfos(AsyncWebServerRequest *request) {
     doc["pressure"] = 255;
 
   if (useLux>0) {
-    doc["lux"] = lx;
+    doc["lux"] = lxRaw;
   }
   else
-    doc["lx"] = 255;
+    doc["lux"] = 255;
   extern bool mqttConnected;
   doc["rssi"] = WiFi.RSSI();
   doc["telnetClients"] = telnetActiveConnections();
@@ -3229,7 +3689,8 @@ doc["ledCurrentmA"] = 0;
 doc["ledAppliedBrightness"] = 0;
 #endif
 doc["ledLimitmA"] = prm.maxLedmA;
-doc["onboardLed"] = onboardLedState;
+doc["onboardLed"] = (bool)(ONBOARD_LED_SHARED_WITH_ALARM ? false : onboardLedState);
+doc["onboardLedSupported"] = (bool)(!ONBOARD_LED_SHARED_WITH_ALARM && (ONBOARD_LED_PIN >= 0));
 
 // Compute wake seconds left based on last motion and configured wake time
 uint16_t wakeLeft = 0;
@@ -3307,6 +3768,7 @@ void setup() {
   #if ALARMSPEAKER_PIN >= 0
     pinMode(ALARMSPEAKER_PIN, OUTPUT); regPin(ALARMSPEAKER_PIN,"ALARMSPEAKER_PIN");
     digitalWrite(ALARMSPEAKER_PIN,!ALARM_ON);
+    alarmSpeakerLastWriteLevel = (int8_t)(!ALARM_ON);
     DPRINT("  - ON state:");
     if (ALARM_ON == HIGH) {DPRINTLN("HIGH"); }
     else {DPRINTLN("LOW"); }
@@ -3383,7 +3845,6 @@ void setup() {
   #ifdef USE_I2CSENSORS
     setupI2Csensors();
   #endif
-  setupGestureSensor();
   
   #ifdef USE_RTC
     setupRTC();
@@ -3423,6 +3884,15 @@ void setup() {
     prm.rgbEffect = 1;
     debugLogf("[RGB] Boot: Invalid rgbEffect in EEPROM, fallback -> 1");
   }
+  #if defined(CLOCK_42) || defined(CLOCK_42a)
+  // On CLOCK_42x, effect 6/10 map to the same smooth flow engine in runtime.
+  // Normalize persisted values so boot behavior matches live behavior.
+  if (prm.rgbEffect == 6 || prm.rgbEffect == 10) {
+    prm.rgbEffect = 5;
+    requestSaveEEPROM();
+    debugLogf("[RGB] Boot: remapped effect 6/10 -> 5 for CLOCK_42x");
+  }
+  #endif
 
   bool touchMappingMigrated = false;
   if (prm.touchShortAction == TOUCH_ACTION_DISPLAY_OFF) {
@@ -3461,18 +3931,22 @@ void setup() {
   
   setupNeopixel();
   listPins();
-  writeAlarmPin(ALARM_ON); writeAlarmPin(!ALARM_ON);
+  // Do not pulse the alarm output during boot. On some boards this can latch audible output.
+  writeAlarmPin(!ALARM_ON);
   getDHTemp();  //get the first DHT temp+humid measure
-    
+
   byte saveMode = prm.animMode;
   prm.animMode = 2;
+  // Keep startup LED hint strict (green/red) already during tube self-test.
+  bootHintForceRunning = true;
   if (tubesPowerState) {
     doAnimationPWM();
   } else {
     // Display is OFF: keep ambient LEDs OFF and stop PWM animation.
   }
   testTubes(300);
-  startupMuteRgb = true; // Keep LEDs OFF between tube test and end of IP display
+  onboardLedState = false;   // Keep GPIO2 line low after tube self-test
+  applyOnboardLedState();
 
   clearDigits();
   disableDisplay();
@@ -3494,7 +3968,15 @@ void setup() {
   memset(digit,10,sizeof(digit));   //clear display
   memset(newDigit,10,sizeof(newDigit));
   memset(oldDigit,10,sizeof(oldDigit));
-  
+
+#ifdef WIFI_DISABLE_FOR_TEST
+  prm.wifiMode = false;
+  wifiConnectRunning = false;
+  WiFi.disconnect(true);
+  delay(50);
+  WiFi.mode(WIFI_OFF);
+  DPRINTLN("[WIFI] Disabled for test (WIFI_DISABLE_FOR_TEST). Skipping network startup.");
+#else
   wifiConnectRunning = true;
   writeDisplay2();
   if (bootNeedsInitialSetup) {
@@ -3530,6 +4012,9 @@ void setup() {
   else {
     startStandaloneMode();
   }
+  #ifdef USE_NEOPIXEL
+    applyBootWifiLedHint();
+  #endif
   wifiConnectRunning = false;
 
   startMDNS();
@@ -3542,10 +4027,11 @@ debugLogLine("Remote logging ready: SSE /events + Telnet :23");
   #ifdef USE_MQTT
     setupMqtt();
   #endif
-  
+#endif
+
+  speakerBootRelatch42a();
   showMyIp();
   Fdelay(500);
-  startupMuteRgb = false;
   clearDigits();
   Fdelay(200);
   enableDisplay(0);
@@ -3553,6 +4039,7 @@ debugLogLine("Remote logging ready: SSE /events + Telnet :23");
   timeClient.begin();
   calcTime();
   timeProgram();
+  bootHintForceRunning = false;
 
   //newCathodeProtect(5000,0);
 }
@@ -3664,6 +4151,20 @@ void loadEEPROM() {
   settingsLoadFromEEPROM();
   // Backward-compatible sanity for newly added fields (older EEPROM will have 0xFFFF).
   if (prm.maxLedmA == 0xFFFF || prm.maxLedmA > 2000) prm.maxLedmA = 350;
+  if (prm.alarmHour > 23) prm.alarmHour = 7;
+  if (prm.alarmMin > 59) prm.alarmMin = 0;
+  if (prm.alarmPeriod < 1 || prm.alarmPeriod > 240) prm.alarmPeriod = 15;
+  if (prm.alarmTune < ALARM_TUNE_MIN || prm.alarmTune > ALARM_TUNE_MAX) prm.alarmTune = ALARM_TUNE_DEFAULT;
+  prm.webAdminPassword[sizeof(prm.webAdminPassword) - 1] = '\0';
+  if (prm.webPasswordConfigured > 1) prm.webPasswordConfigured = 0;
+  if (prm.webPasswordConfigured == 1) {
+    String persisted = String(prm.webAdminPassword);
+    if (!isStrongWebPassword(persisted)) {
+      prm.webPasswordConfigured = 0;
+      prm.webAdminPassword[0] = '\0';
+      requestSaveEEPROM();
+    }
+  }
   // 0 disables the limiter intentionally; keep 0 as-is.
   DPRINT("  version:"); DPRINTLN(prm.magic);
   enableDisplay(0);
@@ -3685,6 +4186,25 @@ void saveEEPROM() {
 // settings.h implementation (persistent UI/user settings separate from model config)
 // Stored in EEPROM at SETTINGS_EEPROM_ADDR (after prm block).
 void settingsSetDefaults() {
+  // UI default palette:
+  // - VFD profiles: requested cool tone defaults
+  // - others: existing warm tone defaults
+  #if defined(MAX6921) || defined(MAX6921_ESP32) || defined(SN75512) || defined(SN75518_ESP32) || defined(PT6311) || defined(PT6355)
+    static const uint8_t UI_BG_R_DEFAULT = 2;
+    static const uint8_t UI_BG_G_DEFAULT = 2;
+    static const uint8_t UI_BG_B_DEFAULT = 3;
+    static const uint8_t UI_PANEL_R_DEFAULT = 8;
+    static const uint8_t UI_PANEL_G_DEFAULT = 17;
+    static const uint8_t UI_PANEL_B_DEFAULT = 18;
+  #else
+    static const uint8_t UI_BG_R_DEFAULT = 3;
+    static const uint8_t UI_BG_G_DEFAULT = 2;
+    static const uint8_t UI_BG_B_DEFAULT = 2;
+    static const uint8_t UI_PANEL_R_DEFAULT = 15;
+    static const uint8_t UI_PANEL_G_DEFAULT = 6;
+    static const uint8_t UI_PANEL_B_DEFAULT = 6;
+  #endif
+
   settings.schemaVersion = SETTINGS_SCHEMA_VERSION;
   settings.debugEnabled = false;
 
@@ -3692,15 +4212,16 @@ void settingsSetDefaults() {
   settings.rgbFixR = 255;
   settings.rgbFixG = 255;
   settings.rgbFixB = 255;
+  settings.rgbAutoDimDayMinPercent = 25;
 
   // UI Customization defaults (dark theme with orange accent)
   settings.uiWidth = 800;       // 800px default
-  settings.uiBgR = 3;
-  settings.uiBgG = 2;
-  settings.uiBgB = 2;
-  settings.uiPanelR = 15;
-  settings.uiPanelG = 6;
-  settings.uiPanelB = 6;
+  settings.uiBgR = UI_BG_R_DEFAULT;
+  settings.uiBgG = UI_BG_G_DEFAULT;
+  settings.uiBgB = UI_BG_B_DEFAULT;
+  settings.uiPanelR = UI_PANEL_R_DEFAULT;
+  settings.uiPanelG = UI_PANEL_G_DEFAULT;
+  settings.uiPanelB = UI_PANEL_B_DEFAULT;
   settings.uiAccentR = 0xD9;    // #D96025 (orange accent)
   settings.uiAccentG = 0x60;
   settings.uiAccentB = 0x25;
@@ -3712,10 +4233,7 @@ void settingsSetDefaults() {
   settings.enablePressDisplay = true;
   settings.pressureStart = 50;
   settings.pressureEnd = 55;
-  settings.gestureUpAction = TOUCH_ACTION_COLOR_CHANGE;
-  settings.gestureDownAction = TOUCH_ACTION_COLOR_PREV;
-  settings.gestureLeftAction = TOUCH_ACTION_COLOR_PREV;
-  settings.gestureRightAction = TOUCH_ACTION_COLOR_CHANGE;
+  settings.rgbNightEnabled = 0; // default: RGB OFF during automatic night mode
 
   settings.mqttInTempTopic[0] = '\0';
   settings.mqttInHumidTopic[0] = '\0';
@@ -3762,6 +4280,8 @@ bool settingsLoadFromEEPROM() {
   sanitizeTopic(settings.mqttInRadarTopic, sizeof(settings.mqttInRadarTopic));
   sanitizeTopic(settings.mqttInLuxTopic, sizeof(settings.mqttInLuxTopic));
   sanitizeTopic(settings.mqttInPressureTopic, sizeof(settings.mqttInPressureTopic));
+  if (settings.rgbNightEnabled > 1) settings.rgbNightEnabled = 0;
+  if (settings.rgbAutoDimDayMinPercent > 100) settings.rgbAutoDimDayMinPercent = 25;
 
   return true;
 }
@@ -3813,6 +4333,7 @@ void factoryReset() {
   prm.alarmHour = 7;
   prm.alarmMin = 0;
   prm.alarmPeriod = 15;
+  prm.alarmTune = ALARM_TUNE_DEFAULT;
   prm.rgbEffect = 2;
   prm.rgbBrightness = 80;
   prm.maxLedmA = 350;
@@ -3830,9 +4351,6 @@ void factoryReset() {
   #else
     strcpy(prm.wifiPsw,"");
   #endif  
-  for (int i=0;i<(int)strlen(prm.ApSsid);i++) {  //repair bad chars in AP SSID
-    if ((prm.ApSsid[i]<32) || (prm.ApSsid[i]>126)) prm.ApSsid[i]='_';
-  }
   strncpy(prm.ApSsid, FACTORY_DEFAULT_AP_NAME, sizeof(prm.ApSsid) - 1);
   prm.ApSsid[sizeof(prm.ApSsid) - 1] = '\0';
   strncpy(prm.ApPsw, FACTORY_DEFAULT_AP_PASSWORD, sizeof(prm.ApPsw) - 1);
@@ -3888,6 +4406,8 @@ void factoryReset() {
   prm.manualTimeValid = false;
   prm.manualEpoch = 0;
   prm.magic = MAGIC_VALUE;              //magic value to check the EEPROM version
+  prm.webAdminPassword[0] = '\0';
+  prm.webPasswordConfigured = 0;
   settingsSetDefaults();
   // Factory reset must persist immediately before reboot
   settingsDirty = true;
@@ -4637,29 +5157,129 @@ void changeDigit() {
 }
 
 void writeAlarmPin(boolean newState) {
+  #ifdef DISABLE_ALARM_OUTPUT
+    (void)newState;
+    #if ALARMSPEAKER_PIN >= 0
+      static bool alarmPinInit = false;
+      if (!alarmPinInit) {
+        pinMode(ALARMSPEAKER_PIN, OUTPUT);
+        alarmPinInit = true;
+      }
+      digitalWrite(ALARMSPEAKER_PIN, !ALARM_ON);
+      alarmSpeakerLastWriteLevel = (int8_t)(!ALARM_ON);
+    #endif
+    return;
+  #endif
   #if ALARMSPEAKER_PIN>=0
-    static boolean oldState = !ALARM_ON; 
-    if (oldState != newState) {
+    static boolean oldState = !ALARM_ON;
+    if (alarmSpeakerLastWriteLevel < 0) {
+      alarmSpeakerLastWriteLevel = (int8_t)oldState;
+    }
+    const int liveLevel = digitalRead(ALARMSPEAKER_PIN);
+    const bool needsWrite = (oldState != newState) || (liveLevel != (int)newState);
+    if (needsWrite) {
       oldState = newState;
       //if (newState == ALARM_ON) DPRINTLN("Alarm ON"); else DPRINTLN("Alarm OFF");
       digitalWrite(ALARMSPEAKER_PIN, newState);
+      alarmSpeakerLastWriteLevel = (int8_t)newState;
+      #if defined(ESP32)
+      if (newState != ALARM_ON) {
+        alarmToneStop();
+      }
+      #endif
     }
   #endif
 }
 
 void alarmSound(void) {
-  static const unsigned int t[] = {0, 3000, 6000, 6200, 9000, 9200, 9400, 12000, 12200, 12400, 15000, 15200, 15400};
-  static int count = 0;
-  static unsigned long nextEvent;
-  const int cMax = sizeof(t) / sizeof(t[0]);  //number of time steps
+  #ifdef DISABLE_ALARM_OUTPUT
+    alarmON = false;
+    writeAlarmPin(!ALARM_ON);
+    return;
+  #endif
+  static uint32_t lastAlarmStartMinuteKey = 0xFFFFFFFFUL; // guard against repeated retrigger in same minute
+  static unsigned long timeValidSinceMs = 0;
+  // Prevent false alarm starts while time is not initialized/synced yet.
+  if (year() >= 2020) {
+    if (timeValidSinceMs == 0) timeValidSinceMs = millis();
+  } else {
+    timeValidSinceMs = 0;
+  }
+
+  // Arm alarm logic only after valid time has been stable for a short period.
+  // This avoids immediate post-boot false triggers that can hijack RGB behavior.
+  if (timeValidSinceMs == 0 || (millis() - timeValidSinceMs) < 60000UL) {
+    alarmON = false;
+    writeAlarmPin(!ALARM_ON);
+    #if ALARM_TUNE_SUPPORTED
+      alarmToneStop();
+    #endif
+    return;
+  }
+  #if !ALARM_TUNE_SUPPORTED
+    static const unsigned int t[] = {0, 3000, 6000, 6200, 9000, 9200, 9400, 12000, 12200, 12400, 15000, 15200, 15400};
+    static int count = 0;
+    static unsigned long nextEvent;
+    const int cMax = sizeof(t) / sizeof(t[0]);  //number of time steps
+  #else
+    #ifdef CLOCK_54
+      // CLOCK_54 path: RTTTL songs only (Politone behavior).
+      const char* activeSong = alarmRtttlSongByTune(prm.alarmTune);
+    #else
+      // Non-CLOCK_54 path: keep legacy melody engine unchanged.
+      struct AlarmNote { uint16_t freq; uint16_t durMs; };
+      static const AlarmNote melodyClassic[] = {
+        {784, 180}, {988, 180}, {1175, 220}, {0, 80},
+        {1175, 180}, {1319, 220}, {1568, 280}, {0, 120},
+        {1568, 180}, {1319, 180}, {1175, 220}, {0, 100},
+        {988, 180}, {1175, 220}, {1319, 260}, {0, 140}
+      };
+      static const AlarmNote melodyChime[] = {
+        {523, 220}, {659, 220}, {784, 280}, {0, 100},
+        {784, 220}, {659, 220}, {523, 320}, {0, 140},
+        {659, 200}, {784, 220}, {988, 260}, {0, 160}
+      };
+      const AlarmNote* activeMelody = melodyClassic;
+      uint8_t activeMelodyLen = (uint8_t)(sizeof(melodyClassic) / sizeof(melodyClassic[0]));
+      switch (prm.alarmTune) {
+        case 1:
+          activeMelody = melodyClassic;
+          activeMelodyLen = (uint8_t)(sizeof(melodyClassic) / sizeof(melodyClassic[0]));
+          break;
+        case 2:
+          activeMelody = melodyChime;
+          activeMelodyLen = (uint8_t)(sizeof(melodyChime) / sizeof(melodyChime[0]));
+          break;
+        default:
+          activeMelody = nullptr;
+          activeMelodyLen = 0;
+          break;
+      }
+      static uint8_t melodyIdx = 0;
+      static unsigned long noteDeadline = 0;
+    #endif
+  #endif
 
   if (prm.alarmEnable) {
     if ( (!alarmON && prm.alarmHour == hour()) && (prm.alarmMin == minute()) && (second() <= 3)) {  //switch ON alarm sound
-      DPRINTLN("Alarm started!");
-      alarmON = true;
-      alarmStarted = millis();
-      count = 0;
-      nextEvent = alarmStarted - 1;
+      const uint32_t minuteKey = (uint32_t)(now() / 60UL);
+      if (minuteKey != lastAlarmStartMinuteKey) {
+        lastAlarmStartMinuteKey = minuteKey;
+        DPRINTLN("Alarm started!");
+        alarmON = true;
+        alarmStarted = millis();
+        #if !ALARM_TUNE_SUPPORTED
+          count = 0;
+          nextEvent = alarmStarted - 1;
+        #else
+          #ifdef CLOCK_54
+            alarmRtttlStart(activeSong);
+          #else
+            melodyIdx = 0;
+            noteDeadline = 0;
+          #endif
+        #endif
+      }
     }
   }
   else {
@@ -4668,6 +5288,9 @@ void alarmSound(void) {
 
   if (!alarmON) {
     writeAlarmPin(!ALARM_ON);
+    #if ALARM_TUNE_SUPPORTED
+      alarmToneStop();
+    #endif
     return;  //nothing to do
   }
 
@@ -4686,24 +5309,57 @@ void alarmSound(void) {
 
   if (!prm.alarmEnable || !alarmON) {  //no alarm, switch off
     writeAlarmPin(!ALARM_ON);
+    #if ALARM_TUNE_SUPPORTED
+      alarmToneStop();
+    #endif
     return;
   }
 
   //-------- Generate sound --------------------------------
-
-  if (millis() > nextEvent) { //go to the next event
-    if (count % 2 == 0) {
-      nextEvent += 500;
-      writeAlarmPin(ALARM_ON);
-      //DPRINT(" Sound ON");  DPRINT("  Next:"); DPRINTLN(nextEvent);
+  #if !ALARM_TUNE_SUPPORTED
+    if (millis() > nextEvent) { //go to the next event
+      if (count % 2 == 0) {
+        nextEvent += 500;
+        writeAlarmPin(ALARM_ON);
+      }
+      else {
+        writeAlarmPin(!ALARM_ON);
+        nextEvent = (count / 2 < cMax) ? alarmStarted +  t[count / 2] : nextEvent + 500;
+      }
+      count++;
     }
-    else {
-      writeAlarmPin(!ALARM_ON);
-      nextEvent = (count / 2 < cMax) ? alarmStarted +  t[count / 2] : nextEvent + 500;
-      //DPRINT("   OFF"); DPRINT("  Next:"); DPRINTLN(nextEvent);
-    }
-    count++;
-  }
+  #else
+    #ifdef CLOCK_54
+      if (activeSong != alarmRtttlActiveSong) alarmRtttlStart(activeSong);
+      alarmRtttlStep(millis());
+    #else
+      if (activeMelody == nullptr || activeMelodyLen == 0) {
+        static unsigned long nextBeep = 0;
+        static bool beepOn = false;
+        const unsigned long nowMs = millis();
+        if (nowMs >= nextBeep) {
+          beepOn = !beepOn;
+          if (beepOn) {
+            alarmTonePlay(2000);
+            nextBeep = nowMs + 260;
+          } else {
+            alarmToneStop();
+            nextBeep = nowMs + 220;
+          }
+        }
+      } else {
+        const unsigned long nowMs = millis();
+        if (nowMs >= noteDeadline) {
+          const AlarmNote &n = activeMelody[melodyIdx];
+          if (n.freq == 0) alarmToneStop();
+          else alarmTonePlay(n.freq);
+          noteDeadline = nowMs + n.durMs;
+          melodyIdx++;
+          if (melodyIdx >= activeMelodyLen) melodyIdx = 0;
+        }
+      }
+    #endif
+  #endif
 }
 
 
@@ -4727,14 +5383,6 @@ void evalShutoffTime(void) {  // Determine whether  tubes should be turned to NI
     if (prevShutoffState == false) manualOverride = false;
     prevShutoffState = true;
   }
-  return;
-  DPRINT("mn="); DPRINT(mn);
-  DPRINT("  mn_on="); DPRINT(mn_on);
-  DPRINT("  mn_off="); DPRINT(mn_off);
-  DPRINT("  manOverride:"); DPRINT(manualOverride);
-  DPRINT("  displayON:"); DPRINTLN(displayON);
-  DPRINT("  enableBlink:"); DPRINTLN(prm.enableBlink);
-  DPRINT("  blinkState:"); DPRINTLN(colonBlinkState);
 }
 
 
@@ -4917,6 +5565,74 @@ inline int mod(int a, int b) {
   return r < 0 ? r + b : r;
 }
 
+#ifdef USE_NEOPIXEL
+static void applyBootWifiLedHint() {
+  // Boot hint colors:
+  // - During startup hint window (WiFi connect + IP show): strict 2-state only
+  //   Client(STA)=green (latched after first connect), otherwise red.
+  // - STA connected: green (highest priority)
+  // - After first STA connect, keep green for a short hold time to mask
+  //   transient WL_CONNECTED drops during DHCP/roaming.
+  // - AP active without STA: red
+  // - connecting/unknown: orange
+  static bool seenStaConnected = false;
+  static bool bootHintStaLatched = false;
+  static unsigned long greenHoldUntilMs = 0;
+  const unsigned long nowMs = millis();
+  const bool bootHintActive = (wifiConnectRunning || ipShowRunning || bootHintForceRunning);
+
+  // During IP-show, keep strict direct status mapping (no transitional blending):
+  // STA connected -> green, otherwise red.
+  if (ipShowRunning) {
+    if (WiFi.status() == WL_CONNECTED) {
+      showSolidNeopixels(0, 255, 0, 96);   // green
+    } else {
+      showSolidNeopixels(255, 0, 0, 96);   // red
+    }
+    return;
+  }
+
+  // During startup hint, enforce strict green/red indication and latch green
+  // after first STA connect to avoid transient flicker back to red.
+  if (bootHintActive) {
+    if (WiFi.status() == WL_CONNECTED) {
+      bootHintStaLatched = true;
+    }
+    if (bootHintStaLatched) {
+      showSolidNeopixels(0, 255, 0, 96);   // green
+    } else {
+      WiFiMode_t wm = WiFi.getMode();
+      if (wm == WIFI_AP) {
+        showSolidNeopixels(255, 0, 0, 96);   // red
+      } else {
+        showSolidNeopixels(255, 120, 0, 96); // orange (connecting)
+      }
+    }
+    return;
+  }
+  bootHintStaLatched = false;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    seenStaConnected = true;
+    greenHoldUntilMs = nowMs + 5000UL;  // keep green 5s after connect
+    showSolidNeopixels(0, 255, 0, 96);   // green
+    return;
+  }
+
+  if (seenStaConnected && ((long)(nowMs - greenHoldUntilMs) < 0)) {
+    showSolidNeopixels(0, 255, 0, 96);   // green hold
+    return;
+  }
+
+  WiFiMode_t wm = WiFi.getMode();
+  if (wm == WIFI_AP) {
+    showSolidNeopixels(255, 0, 0, 96);   // red
+    return;
+  }
+  showSolidNeopixels(255, 120, 0, 96); // orange (disconnected/connecting)
+}
+#endif
+
 
 void testTubes(int dely) {
   Fdelay(dely);
@@ -4926,7 +5642,7 @@ void testTubes(int dely) {
     DPRINT(i); DPRINT(" ");
     for (int j = 0; j < maxDigits; j++) {
       newDigit[j] = i;
-      digit[i] = i;
+      digit[j] = i;
       digitDP[j] = i % 2;
     }
     changeDigit();
@@ -4985,7 +5701,7 @@ void printSensors(void) {
   }
 }
 
-void printChar(int i) {
+void printChar(int i, bool dp) {
   if (i < 10)      {DPRINT(i);}
     else if (i==10)  {DPRINT(" ");}
     else if (i==TEMP_CHARCODE)    {DPRINT("C");}
@@ -4995,10 +5711,13 @@ void printChar(int i) {
     else if (i==19) {DPRINT("I");}    
     else if (i==14) {DPRINT("P");}    
     else    DPRINT("-");
-    
-    if (digitDP[i]) {DPRINT(".");} else {DPRINT(" ");}
+
+    if (dp) {DPRINT(".");} else {DPRINT(" ");}
 }
 
+void printChar(int i) {
+  printChar(i, false);
+}
 void printDigits(unsigned long timeout) {
   static unsigned long lastRun = millis();
 
@@ -5006,7 +5725,7 @@ void printDigits(unsigned long timeout) {
   lastRun = millis();
   
   #ifdef DEBUG
-  DPRINT("   digit: [");  for (int i = maxDigits - 1; i >= 0; i--) {printChar(digit[i]);} DPRINT("]");
+  DPRINT("   digit: [");  for (int i = maxDigits - 1; i >= 0; i--) {printChar(digit[i], digitDP[i]);} DPRINT("]");
   DPRINT(colonBlinkState ? " * " : "   ");
   //DPRINT("\noldDigit: ");  for (int i = maxDigits - 1; i >= 0; i--) {printChar(oldDigit[i]);}
   //DPRINT("\nnewDigit: ");  for (int i = maxDigits - 1; i >= 0; i--) {printChar(newDigit[i]);}
@@ -5057,9 +5776,6 @@ void checkTubePowerOnOff(void) {
     if (!tubesPowerState) {
       clearDigits();
       rawWrite();
-      #ifdef USE_NEOPIXEL
-      darkenNeopixels();
-      #endif
     }
   }
 #ifdef TUBE_POWER_PIN
@@ -5132,12 +5848,9 @@ void checkTubePowerOnOff(void) {
     DPRINT("DISPLAY: ");
     DPRINTLN(tubesPowerState ? "ON" : "OFF");
     if (!tubesPowerState) {
-      // Ensure tubes and LEDs immediately go dark when display is OFF.
+      // Ensure tubes are immediately blanked when display is OFF.
       clearDigits();
       rawWrite(); // push "all off" to HV driver
-      #ifdef USE_NEOPIXEL
-    darkenNeopixels();
-#endif
     }
   }
 
@@ -5156,6 +5869,15 @@ void checkTubePowerOnOff(void) {
   dbg.nowMs = now;
   dbg.lastMotionMs = tubesLastMotionMs;
   dbg.wakeMs = wakeMs;
+  dbg.onboardLedRequested = onboardLedState;
+  dbg.onboardLedEffective = onboardLedEffectiveState;
+  dbg.onboardLedShared = (bool)ONBOARD_LED_SHARED_WITH_ALARM;
+  dbg.onboardLedPin = (int8_t)ONBOARD_LED_PIN;
+  dbg.alarmEnabled = prm.alarmEnable;
+  dbg.alarmInProgress = alarmON;
+  dbg.speakerToneActive = alarmToneActiveState;
+  dbg.speakerPin = (int8_t)ALARMSPEAKER_PIN;
+  dbg.speakerWriteLevel = alarmSpeakerLastWriteLevel;
 
   // wake left seconds (0 if sleeping / always-on mode / no timer)
   uint16_t left = 0;
@@ -5167,6 +5889,18 @@ void checkTubePowerOnOff(void) {
 
   // timeSource is already computed for UI in handleSendCurrentInfos(); here we keep a lightweight best-effort:
   dbg.timeSource = (WiFi.status() == WL_CONNECTED) ? "NTP/WiFi" : "NoWiFi";
+  #if ONBOARD_LED_PIN >= 0
+    dbg.onboardLedLevel = (int8_t)digitalRead(ONBOARD_LED_PIN);
+  #else
+    dbg.onboardLedLevel = -1;
+  #endif
+  #if ALARMSPEAKER_PIN >= 0
+    dbg.speakerLevel = (int8_t)digitalRead(ALARMSPEAKER_PIN);
+    dbg.speakerLogicalOn = (dbg.speakerWriteLevel == ALARM_ON);
+  #else
+    dbg.speakerLevel = -1;
+    dbg.speakerLogicalOn = false;
+  #endif
 #endif
 #ifdef TUBE_POWER_PIN
   // If you have a real HV power pin, use it as well.
@@ -5189,7 +5923,8 @@ int luxMeter(void) {
   float ADCdata = analogRead(LIGHT_SENSOR_PIN); //DPRINT("ADC:"); DPRINTLN(ADCdata);
   float ldrResistance = (MAX_ADC_READING - ADCdata) / ADCdata * REF_RESISTANCE;
   float ldrLux = LUX_CALC_SCALAR * pow(ldrResistance, LUX_CALC_EXPONENT);
-  if ((ldrLux>=MAXIMUM_LUX)||(ldrLux <0)) ldrLux = MAXIMUM_LUX;   //Limit lux value to maximum
+  if (ldrLux < 0) ldrLux = oldLux;
+  if (ldrLux > 100000.0f) ldrLux = 100000.0f; //sanity clamp only
   oldLux = oldLux + (ldrLux-oldLux)/10;   //slow down Lux change
   return (int)oldLux;
 #else
@@ -5206,22 +5941,21 @@ void getLightSensor(void) {
 
   if (BH1750exist) {
     tmp = getBH1750();
-    if ((abs(tmp-oldLx)>1) || (tmp >= MAXIMUM_LUX)) {
-      lx=tmp; oldLx = lx; 
-    }
-    if (lx>=MAXIMUM_LUX-2) lx = MAXIMUM_LUX;
+    if (abs(tmp-oldLx)>1) oldLx = tmp;
+    lxRaw = oldLx;
+    lx = (lxRaw >= MAXIMUM_LUX) ? MAXIMUM_LUX : lxRaw;
     autoBrightness = prm.enableAutoDim;
   }
   else if (LDRexist) {
     tmp = luxMeter();
-    if ((abs(tmp-oldLx)>1) || (tmp >= MAXIMUM_LUX))  {
-      lx=tmp;  oldLx = lx; 
-    }
-    if (lx>=MAXIMUM_LUX-2) lx = MAXIMUM_LUX;
+    if (abs(tmp-oldLx)>1) oldLx = tmp;
+    lxRaw = oldLx;
+    lx = (lxRaw >= MAXIMUM_LUX) ? MAXIMUM_LUX : lxRaw;
     autoBrightness = prm.enableAutoDim;
   }
   else {
     lx = MAXIMUM_LUX;
+    lxRaw = 0;
     autoBrightness = false;
   }
 }
@@ -5316,7 +6050,7 @@ void cycleFixedColorPalette(int step) {
 
 static void cycleTouchColor() {
   cycleFixedColorPalette(1);
-  debugLogf("[Touch33] color change -> R:%u G:%u B:%u", settings.rgbFixR, settings.rgbFixG, settings.rgbFixB);
+  debugLogf("[INPUT] color change -> R:%u G:%u B:%u", settings.rgbFixR, settings.rgbFixG, settings.rgbFixB);
 }
 
 static void executeTouchAction(uint8_t action, const char* src) {
@@ -5324,45 +6058,26 @@ static void executeTouchAction(uint8_t action, const char* src) {
     case TOUCH_ACTION_ALARM_OFF:
       alarmON = false;
       writeAlarmPin(!ALARM_ON);
-      debugLogf("[Touch33] %s action: Alarm OFF", src);
+      debugLogf("[INPUT] %s action: Alarm OFF", src);
       break;
     case TOUCH_ACTION_COLOR_CHANGE:
       cycleTouchColor();
-      debugLogf("[Touch33] %s action: Color change", src);
+      debugLogf("[INPUT] %s action: Color change", src);
       break;
     case TOUCH_ACTION_COLOR_PREV:
       cycleFixedColorPalette(-1);
-      debugLogf("[Touch33] %s action: Color previous", src);
+      debugLogf("[INPUT] %s action: Color previous", src);
       break;
     case TOUCH_ACTION_DISPLAY_OFF:
       prm.manualDisplayOff = true;
-      debugLogf("[Touch33] %s action: Display OFF", src);
+      debugLogf("[INPUT] %s action: Display OFF", src);
       break;
     case TOUCH_ACTION_DISPLAY_TOGGLE:
       prm.manualDisplayOff = !prm.manualDisplayOff;
-      debugLogf("[Touch33] %s action: Display %s", src, prm.manualDisplayOff ? "OFF" : "ON");
+      debugLogf("[INPUT] %s action: Display %s", src, prm.manualDisplayOff ? "OFF" : "ON");
       break;
     default:
-      debugLogf("[Touch33] %s action: None", src);
-      break;
-  }
-}
-
-void executeGestureMappedAction(uint8_t direction) {
-  switch (direction) {
-    case 0:
-      executeTouchAction(settings.gestureUpAction, "gesture-up");
-      break;
-    case 1:
-      executeTouchAction(settings.gestureDownAction, "gesture-down");
-      break;
-    case 2:
-      executeTouchAction(settings.gestureLeftAction, "gesture-left");
-      break;
-    case 3:
-      executeTouchAction(settings.gestureRightAction, "gesture-right");
-      break;
-    default:
+      debugLogf("[INPUT] %s action: None", src);
       break;
   }
 }
@@ -5375,7 +6090,14 @@ static void processTouchButton() {
 
   uint32_t nowMs = millis();
   uint16_t raw = (uint16_t)touchRead(TOUCH_BUTTON_PIN);
-  bool isTouched = (raw > 0) && (raw < touchThreshold);
+  const uint16_t releaseThreshold = (uint16_t)(touchThreshold + TOUCH_HYSTERESIS_COUNTS);
+  bool isTouched;
+  if (touchPressed) {
+    // Hysteresis while pressed: avoids threshold chatter near release (e.g. 58/59/60).
+    isTouched = (raw > 0) && (raw < releaseThreshold);
+  } else {
+    isTouched = (raw > 0) && (raw < touchThreshold);
+  }
 
   if (isTouched) {
     if (!touchPressed) {
@@ -5395,6 +6117,11 @@ static void processTouchButton() {
     touchPressed = false;
     uint32_t duration = nowMs - touchPressedAtMs;
     debugLogf("[Touch33] up raw=%u duration=%ums", raw, duration);
+
+    // Ignore ultra-short pulses caused by touch threshold bounce/noise.
+    if (duration < TOUCH_MIN_PRESS_MS) {
+      return;
+    }
 
     if (duration >= TOUCH_LONG_PRESS_MS) {
       touchShortPending = false;
@@ -5430,30 +6157,13 @@ void loop(void) {
   timeProgram();
   //writeDisplaySingleGuarded();
   writeDisplay2();
-#ifdef USE_NEOPIXEL
-  static bool neopixelsForcedOff = false;
-#endif
-
-#ifdef USE_NEOPIXEL
-  if (tubesPowerState || alarmON) {
-    neopixelsForcedOff = false;
-    doAnimationMakuna();
-  } else {
-    if (!neopixelsForcedOff) {
-      darkenNeopixels();
-      neopixelsForcedOff = true;
-    }
-  }
-#else
-  doAnimationMakuna();
-#endif
   checkTubePowerOnOff();
+  doAnimationMakuna();
   doAnimationPWM();
   alarmSound();
 #if defined(ESP32)
   processTouchButton();
 #endif
-  processGestureSensor();
   debugSnapshot();
   //heapGuardTick();
   getLightSensor();

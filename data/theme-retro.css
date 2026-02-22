@@ -1,0 +1,237 @@
+/* ===== Industrial Retro Theme ===== */
+:root{
+    --retro-bg-0: #140f0a;
+    --retro-bg-1: #1d140d;
+    --retro-bg-2: #2a1c12;
+    --retro-panel: #23180f;
+    --retro-panel-hi: #2f2116;
+    --retro-line: #5c3d25;
+    --retro-line-soft: #3e2a1a;
+    --retro-text: #f0d8b9;
+    --retro-text-dim: #c2a07b;
+    --retro-glow: #e07a2f;
+    --retro-glow-soft: rgba(224, 122, 47, 0.28);
+    --retro-nixie: #ffb779;
+    --retro-nixie-dim: #d89a63;
+    --retro-nixie-soft: #f4c89d;
+}
+
+html{
+    background:
+        radial-gradient(circle at 14% 10%, rgba(255, 183, 112, 0.11), transparent 42%),
+        radial-gradient(circle at 85% 88%, rgba(167, 96, 42, 0.10), transparent 45%),
+        linear-gradient(165deg, var(--retro-bg-0) 0%, var(--retro-bg-1) 52%, #100b07 100%);
+    color: var(--retro-text);
+}
+
+body{
+    color: var(--retro-nixie-dim);
+    font-family: "Trebuchet MS", "Segoe UI", Tahoma, Verdana, sans-serif;
+}
+
+.content.max-width{
+    border-left: 1px solid var(--retro-line-soft);
+    border-right: 1px solid var(--retro-line-soft);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.10)),
+        repeating-linear-gradient(
+            0deg,
+            rgba(255,255,255,0.015) 0px,
+            rgba(255,255,255,0.015) 1px,
+            transparent 1px,
+            transparent 7px
+        );
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.control-holder{
+    padding: 8px;
+}
+
+.control-holder > label,
+.form label{
+    color: var(--retro-nixie);
+    text-shadow: 0 1px 0 #000;
+    letter-spacing: 0.03em;
+}
+
+input, select, button{
+    background: linear-gradient(180deg, var(--retro-panel-hi), var(--retro-panel));
+    color: var(--retro-nixie-soft);
+    border: 1px solid var(--retro-line);
+    border-radius: 7px;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 2px 8px rgba(0,0,0,0.3);
+}
+select,
+select option,
+select optgroup{
+    color: #f7dfc3;
+}
+select option{
+    background: #2a1d13;
+}
+select:focus option:checked{
+    background: #3a291b;
+    color: #fff2e2;
+}
+
+input:hover, select:hover, button:hover{
+    background: linear-gradient(180deg, #3a291b, #2a1d13);
+    border-color: #8a5b34;
+}
+
+input:focus, select:focus, button:focus{
+    background: linear-gradient(180deg, #3f2d1e, #2f2116);
+    border-color: var(--retro-glow);
+    box-shadow:
+        0 0 0 1px rgba(224, 122, 47, 0.35),
+        0 0 12px rgba(224, 122, 47, 0.22);
+}
+
+button{
+    color: #ffd3a7;
+    border-width: 1px;
+    border-color: #b36a31;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+button:hover{
+    color: #fff2e2;
+}
+
+#menu-holder > .floating-menu{
+    background: linear-gradient(180deg, #24170f, #1a120c);
+    border-bottom: 1px solid var(--retro-line);
+    box-shadow: 0 3px 14px rgba(0,0,0,0.45);
+}
+
+#menu td .menu-item{
+    color: var(--retro-nixie-dim);
+    border-bottom: 2px solid #6e4627;
+}
+
+#menu td .menu-item:hover{
+    color: #ffd2a5;
+    background: rgba(224, 122, 47, 0.10);
+    border-color: #c17336;
+}
+
+#menu td .menu-item.active{
+    color: #ffd8b2;
+    border-color: var(--retro-glow);
+    text-shadow: 0 0 10px var(--retro-glow-soft);
+}
+
+.switcher-text{
+    color: var(--retro-nixie-dim);
+    text-shadow: none;
+}
+
+[type="checkbox"].switch ~ .switcher{
+    background: #22170f;
+    border-color: #6a4528;
+}
+
+[type="checkbox"].switch:not(.two-side):checked ~ .switcher{
+    background: linear-gradient(180deg, #de7a30, #b65e25);
+}
+
+.info{
+    color: var(--retro-nixie-dim);
+    text-shadow: none;
+}
+
+.info.medium,
+.info.big{
+    color: var(--retro-nixie);
+}
+
+.current-time-nixie{
+    color: #ffb779;
+    letter-spacing: 0.11em;
+    text-shadow:
+        0 0 6px rgba(255, 178, 108, 0.8),
+        0 0 18px rgba(224, 122, 47, 0.45);
+}
+
+.current-time-date{
+    color: var(--retro-nixie-soft);
+    text-shadow: none;
+}
+
+.separator{
+    border-top: 1px dashed #6a4528;
+}
+
+.info-panel,
+.system-card,
+.ui-preview,
+.mqtt-devices-card,
+.log-card{
+    background: linear-gradient(180deg, rgba(52,34,22,0.82), rgba(31,21,14,0.92));
+    border: 1px solid var(--retro-line);
+    border-radius: 10px;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 10px 24px rgba(0,0,0,0.28);
+}
+
+.info-row{
+    border-bottom: 1px solid #3b2718;
+}
+
+.info-row .label,
+.sys-chart-head{
+    color: var(--retro-nixie);
+}
+
+.info-row .value,
+.sys-chart-val{
+    color: var(--retro-nixie-soft);
+}
+
+.live-log-output{
+    background: #120d09;
+    border: 1px solid #4a301d;
+    color: #d4c0aa;
+}
+
+.form label.page-section-title{
+    color: var(--retro-nixie);
+    border-bottom: 1px solid #6a4528;
+    text-shadow: 0 0 8px rgba(224, 122, 47, 0.28);
+}
+
+@keyframes retroFadeIn{
+    from{
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to{
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+[page].active{
+    animation: retroFadeIn 220ms ease-out;
+}
+
+@media (max-width: 768px){
+    .content.max-width{
+        padding-left: 6px;
+        padding-right: 6px;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    #menu td .menu-item{
+        font-size: 11px;
+        letter-spacing: 0.03em;
+    }
+}

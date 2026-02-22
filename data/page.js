@@ -3,8 +3,9 @@
 var _ucAuthToken = '';
 var _ucAuthPromptActive = false;
 var _ucUserInteracted = false;
+var _currentInfosTimer = null;
 try {
-    _ucAuthToken = sessionStorage.getItem('ucAuthToken') || '';
+    _ucAuthToken = localStorage.getItem('ucAuthToken') || '';
 } catch(e) {
     _ucAuthToken = '';
 }
@@ -14,9 +15,9 @@ function setUcAuthToken(token){
     _ucAuthToken = token || '';
     try {
         if(_ucAuthToken){
-            sessionStorage.setItem('ucAuthToken', _ucAuthToken);
+            localStorage.setItem('ucAuthToken', _ucAuthToken);
         } else {
-            sessionStorage.removeItem('ucAuthToken');
+            localStorage.removeItem('ucAuthToken');
         }
     } catch(e) {}
     if(prev !== _ucAuthToken){
@@ -185,6 +186,7 @@ var controlInfos = {
 	"alarmEnable": "Switch ON/OFF alarm",
     "alarmTime": "Alarm time (hour/minute)",
 	"alarmPeriod": "Alarm maximum length (sec)",
+    "alarmTune": "Alarm melody selection (supported boards only)",
 	
 	//Tube display settings
     "utc_offset": 'Timezone setting. <a href="https://en.wikipedia.org/wiki/List_of_time_zones_by_country" target="_blank"></a>https://en.wikipedia.org/wiki/List_of_time_zones_by_country',
@@ -206,6 +208,7 @@ var controlInfos = {
     "enableTempDisplay": "Enable/disable temperature display on tubes",
     "enableHumidDisplay": "Enable/disable humidity display on tubes",
     "enablePressDisplay": "Enable/disable pressure display on tubes",
+    "rgbNightEnabled": "Allow RGB effects during automatic night mode",
 	"dateStart": "Date display start: Date is shown between Start/End seconds",
 	"dateEnd": "Date display end",    
 	"tempStart": "Temperature display time slice start",
@@ -227,18 +230,19 @@ var controlInfos = {
     "rgbBrightness": "RGB leds brightness 0..255",    "rgbFixR": "Fixed RGB red (0..255) used when set",
     "rgbFixG": "Fixed RGB green (0..255) used when set",
     "rgbFixB": "Fixed RGB blue (0..255) used when set",
+    "rgbAutoDimDayMinPercent": "Day mode AutoDim minimum RGB percent (0..100), applied at very low lux",
     "maxLedmA": "Maximum NeoPixel current budget in mA (0 disables limiter)",
     "rgbSpeed": "RGB animation speed",
 	
     //Wifi settings
 	"wifiSsid": "WiFi network SSID to connect",
-	"wifiPsw": "WiFI password",
-	"ApSsid": "AccessPoint name, if standalone mode is used",
-	"ApPsw": "AP password",
+	"wifiPsw": "WiFi password",
+	"ApSsid": "Access Point name, if standalone mode is used",
+	"ApPsw": "AP Password",
 	"NtpServer": "Timeserver name, using WiFi. (Default is: pool.ntp.org)",
 	"mqttBrokerAddr": "MQTT server address, if MQTT used", 
 	"mqttBrokerUser": "MQTT user",
-	"mqttBrokerPsw": "MQTT password",
+	"mqttBrokerPsw": "MQTT Password",
 	"mqttBrokerRefresh": "MQTT send data in every xx sec",
 	"mqttEnable": "Enable/Disable MQTT refresh",
 	"firmware": "http server + firmware name to download new firmware",
@@ -251,10 +255,6 @@ var controlInfos = {
     "touchShortAction": "GPIO33 touch short press action",
     "touchDoubleAction": "GPIO33 touch double press action",
     "touchLongAction": "GPIO33 touch long press action",
-    "gestureUpAction": "Gesture UP action mapping",
-    "gestureDownAction": "Gesture DOWN action mapping",
-    "gestureLeftAction": "Gesture LEFT action mapping",
-    "gestureRightAction": "Gesture RIGHT action mapping",
 	"FW": "firmware code",
 	"tubeDriver": "Tube driver modul"
 };
@@ -281,6 +281,10 @@ var configuration = {
     "alarmEnable": false,
     "alarmTime": "6:30",
 	"alarmPeriod": 15,
+    "alarmTune": 1,
+    "alarmTuneSupported": false,
+    "alarmTuneMin": 0,
+    "alarmTuneMax": 2,
 	"enableRadar": false,   
 	"radarTimeout": 5,    	
 	
@@ -323,6 +327,8 @@ var configuration = {
     "rgbBrightness": 100,    "rgbFixR": 255,
     "rgbFixG": 255,
     "rgbFixB": 255,
+    "rgbAutoDimDayMinPercent": 25,
+    "rgbNightEnabled": false,
     "maxLedmA": 350,
     "rgbSpeed": 50,
 	
@@ -354,16 +360,13 @@ var configuration = {
 	"corrT1": 0.0,
 	"corrH0": 0.0,
 	"corrH1": 0.0,
-	"cathProtMin": 5,
+    "cathProtMin": 5,
     "onboardLed": false,
+    "onboardLedSupported": true,
     "touchShortAction": 0,
     "touchDoubleAction": 0,
     "touchLongAction": 0,
-    "gestureUpAction": 2,
-    "gestureDownAction": 5,
-    "gestureLeftAction": 5,
-    "gestureRightAction": 2,
-    "gestureSensorPresent": false,
+    "uiDefaultTheme": "retro",
     "FW": "fw",
 	"tubeDriver": "xxx"
 };
@@ -372,6 +375,7 @@ var isMouseDown = 0;
 // ---- RGB EEPROM debounce ----
 var _rgbCommitTimer = null;
 var _maxLedCommitTimer = null;
+var _calibCommitTimers = {};
 function commitRgbDebounced(r,g,b){
     clearTimeout(_rgbCommitTimer);
     _rgbCommitTimer = setTimeout(function(){
@@ -431,15 +435,36 @@ function setLocalPagination(){
 }
 
 function getConfiguration(){
-    var cfgUrl = (!isTest && !_ucAuthToken) ? '/getPublicConfig' : '/getConfiguration';
-    apiGet(cfgUrl).done(function(data){
+    function applyConfigurationData(data){
         configuration = $.extend({}, configuration, data || {});
         applyConfigToMainExtras(configuration);
         // Apply UI customization settings from firmware EEPROM
         loadUICSSFromLocalStorage();
-    }).always(function(){
-        Init();
-    });
+    }
+
+    var cfgUrl = (!isTest && !_ucAuthToken) ? '/getPublicConfig' : '/getConfiguration';
+    apiGet(cfgUrl)
+        .done(function(data){
+            applyConfigurationData(data);
+            Init();
+        })
+        .fail(function(jqxhr){
+            // Common boot path after device restart:
+            // stale session token causes /getConfiguration -> 401.
+            // Recover in-place by falling back to public config, no manual refresh needed.
+            if (!isTest && cfgUrl === '/getConfiguration' && jqxhr && jqxhr.status === 401) {
+                setUcAuthToken('');
+                apiGet('/getPublicConfig')
+                    .done(function(data2){
+                        applyConfigurationData(data2);
+                    })
+                    .always(function(){
+                        Init();
+                    });
+                return;
+            }
+            Init();
+        });
 }
 
 function sendMsgToArduino(key,value) {
@@ -510,6 +535,23 @@ function setPreviewColor(){
     }
 }
 
+function updateServiceCalibrationLiveReadouts(){
+    var t0 = parseFloat(configuration["temperature"]);
+    var t1 = parseFloat(configuration["temperature2"]);
+    var h0 = parseFloat(configuration["humidity"]);
+    var h1 = parseFloat(configuration["humidity2"]);
+
+    var t0Ok = !Number.isNaN(t0) && t0 !== 255;
+    var t1Ok = !Number.isNaN(t1) && t1 !== 255 && t1 !== 0;
+    var h0Ok = !Number.isNaN(h0) && h0 !== 255;
+    var h1Ok = !Number.isNaN(h1) && h1 !== 255 && h1 !== 0;
+
+    $('#corrT0Live').text('Live: ' + (t0Ok ? (getTemperature(t0) + (configuration["tempCF"] ? ' F' : ' C')) : '--'));
+    $('#corrT1Live').text('Live: ' + (t1Ok ? (getTemperature(t1) + (configuration["tempCF"] ? ' F' : ' C')) : '--'));
+    $('#corrH0Live').text('Live: ' + (h0Ok ? (round(h0, 1) + ' %') : '--'));
+    $('#corrH1Live').text('Live: ' + (h1Ok ? (round(h1, 1) + ' %') : '--'));
+}
+
 function setCurrentInfos(){
     var currentDateText = getCurrentDate(configuration["currentDate"]);
     var currentTimeText = String(configuration["currentTime"] || '--:--');
@@ -538,6 +580,7 @@ function setCurrentInfos(){
     $('#temperature').html(getTemperature(configuration["temperature"]));
     $('#temperature2').html(temperature2Valid ? getTemperature(configuration["temperature2"]) : '--');
     $('#temperature, #temperature2').toggleClass('fahrenheit',configuration["tempCF"]);
+    updateServiceCalibrationLiveReadouts();
 
     // Keep Manual Override switch in sync with effective Day/Night status (indicator behavior)
     // UI: left=DAY, right=NIGHT => checked means NIGHT
@@ -591,6 +634,60 @@ function updateMaxLedCurrentInfo(){
     }
 }
 
+function updateRgbAutoDimDayMinPercentInfo(){
+    var v = parseInt($('#rgbAutoDimDayMinPercent').val(), 10);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.max(0, Math.min(100, v));
+    $('#rgbAutoDimDayMinPercentVal').text(v + '%');
+}
+
+function updateCalibrationInfoLabels(){
+    var t0 = parseFloat($('#corrT0').val());
+    var t1 = parseFloat($('#corrT1').val());
+    var h0 = parseFloat($('#corrH0').val());
+    var h1 = parseFloat($('#corrH1').val());
+    var cp = parseInt($('#cathProtMin').val(), 10);
+
+    if (!Number.isNaN(t0)) $('#corrT0Val').text((t0 >= 0 ? '+' : '') + t0.toFixed(1) + ' C');
+    if (!Number.isNaN(t1)) $('#corrT1Val').text((t1 >= 0 ? '+' : '') + t1.toFixed(1) + ' C');
+    if (!Number.isNaN(h0)) $('#corrH0Val').text((h0 >= 0 ? '+' : '') + h0.toFixed(1) + ' %');
+    if (!Number.isNaN(h1)) $('#corrH1Val').text((h1 >= 0 ? '+' : '') + h1.toFixed(1) + ' %');
+    if (!Number.isNaN(cp)) $('#cathProtMinVal').text(String(cp) + ' min');
+}
+
+function saveCalibrationToLocal(key, value){
+    try {
+        localStorage.setItem('uc_cal_' + key, String(value));
+    } catch(e) {}
+}
+
+function applyCalibrationLocalFallback(){
+    // In dashboard-only mode, config is loaded from public endpoint.
+    // Keep slider positions stable across refresh using local fallback.
+    if (!isDashboardOnlyMode()) return;
+
+    var keys = ['corrT0', 'corrT1', 'corrH0', 'corrH1', 'cathProtMin'];
+    keys.forEach(function(key){
+        var raw = null;
+        try {
+            raw = localStorage.getItem('uc_cal_' + key);
+        } catch(e) {
+            raw = null;
+        }
+        if (raw === null || raw === '') return;
+        if (!$('#' + key).length) return;
+
+        $('#' + key).val(raw);
+        if (key === 'cathProtMin') {
+            var iv = parseInt(raw, 10);
+            if (!Number.isNaN(iv)) configuration[key] = iv;
+        } else {
+            var fv = parseFloat(raw);
+            if (!Number.isNaN(fv)) configuration[key] = fv;
+        }
+    });
+}
+
 function round(value, decimals) {
     return parseFloat(value).toFixed(decimals);
     //return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
@@ -630,14 +727,14 @@ function applyRgbInputs(r,g,b){
     if($('#rgbFixBval').length) $('#rgbFixBval').text(b);
 }
 
-$('#rgbFixPicker').on('input', function(){
+$('#rgbFixPicker').off('input.uicfg').on('input.uicfg', function(){
     // Only update UI preview while dragging
     var rgb = hexToRgb($(this).val());
     if(!rgb) return;
     applyRgbInputs(rgb.r, rgb.g, rgb.b);
 });
 
-$('#rgbFixPicker').on('change', function(){
+$('#rgbFixPicker').off('change.uicfg').on('change.uicfg', function(){
     var rgb = hexToRgb($(this).val());
     if(!rgb) return;
 
@@ -656,14 +753,14 @@ $('#rgbFixPicker').on('change', function(){
     setPreviewColor();
 });
 
-$('#rgbFixR, #rgbFixG, #rgbFixB').on('input', function(){
+$('#rgbFixR, #rgbFixG, #rgbFixB').off('input.uicfg').on('input.uicfg', function(){
     var r = parseInt($('#rgbFixR').val()||0,10);
     var g = parseInt($('#rgbFixG').val()||0,10);
     var b = parseInt($('#rgbFixB').val()||0,10);
     applyRgbInputs(r,g,b);
 });
 
-$('#rgbFixR, #rgbFixG, #rgbFixB').on('change', function(){
+$('#rgbFixR, #rgbFixG, #rgbFixB').off('change.uicfg').on('change.uicfg', function(){
     var r = parseInt($('#rgbFixR').val()||0,10);
     var g = parseInt($('#rgbFixG').val()||0,10);
     var b = parseInt($('#rgbFixB').val()||0,10);
@@ -684,7 +781,7 @@ $('#rgbFixR, #rgbFixG, #rgbFixB').on('change', function(){
 });
 
 // Fixed RGB default button
-$('#btnRgbFixDefault').on('click', function(){
+$('#btnRgbFixDefault').off('click.uicfg').on('click.uicfg', function(){
     var r = 255, g = 255, b = 255;
     configuration["rgbFixR"] = r;
     configuration["rgbFixG"] = g;
@@ -701,7 +798,7 @@ $('#btnRgbFixDefault').on('click', function(){
     setTimeout(updateMaxLedCurrentInfo, 150);
 });
 
-$('#maxLedmA').on('input change', function(){
+$('#maxLedmA').off('input.uicfg change.uicfg').on('input.uicfg change.uicfg', function(){
     var v = parseInt($(this).val(), 10);
     if(Number.isNaN(v)) v = 0;
     configuration["maxLedmA"] = v;
@@ -713,6 +810,46 @@ $('#maxLedmA').on('input change', function(){
         sendMsgToArduino('maxLedmA', v);
     }, 250);
 });
+
+    $('#rgbAutoDimDayMinPercent').off('input.uicfg change.uicfg').on('input.uicfg change.uicfg', function(){
+    updateRgbAutoDimDayMinPercentInfo();
+});
+
+function cacheCalibrationUiValue($el){
+    var key = $el.attr('id');
+    var raw = $el.val();
+    var num = parseFloat(raw);
+    if (!Number.isNaN(num)) {
+        configuration[key] = num;
+    }
+    saveCalibrationToLocal(key, raw);
+    updateCalibrationInfoLabels();
+    return { key: key, raw: raw };
+}
+
+$('#corrT0,#corrT1,#corrH0,#corrH1,#cathProtMin')
+    .off('input.uical')
+    .on('input.uical', function(){
+        cacheCalibrationUiValue($(this));
+    })
+    .off('change.uical')
+    .on('change.uical', function(){
+        var p = cacheCalibrationUiValue($(this));
+        if (_calibCommitTimers[p.key]) {
+            clearTimeout(_calibCommitTimers[p.key]);
+            delete _calibCommitTimers[p.key];
+        }
+        sendMsgToArduino(p.key, p.raw); // final value on release/change
+    })
+    .off('mouseup.uical touchend.uical')
+    .on('mouseup.uical touchend.uical', function(){
+        var p = cacheCalibrationUiValue($(this));
+        if (_calibCommitTimers[p.key]) {
+            clearTimeout(_calibCommitTimers[p.key]);
+            delete _calibCommitTimers[p.key];
+        }
+        sendMsgToArduino(p.key, p.raw); // extra safety for fast refreshes
+    });
 
     var sliderFadeOutTimer;
     function setFadeOutTimer(element){
@@ -729,7 +866,7 @@ $('#maxLedmA').on('input change', function(){
         },600);
     }
 
-    $('input[type="range"]').on('mousedown touchstart input',function(){
+    $('input[type="range"]').off('mousedown.uicfg touchstart.uicfg input.uicfg').on('mousedown.uicfg touchstart.uicfg input.uicfg',function(){
         clearTimeout(sliderFadeOutTimer);
         var id = $(this).attr('id');
         var parent = $(this).closest('.control-holder');
@@ -748,7 +885,7 @@ $('#maxLedmA').on('input change', function(){
         sliderFadeOutTimer = setFadeOutTimer(_this);
     });
 
-    $('.form label').on('click',function(){
+    $('.form label').off('click.uicfg').on('click.uicfg',function(){
         var id = '';
         if(!!$(this).attr('for')){
             id = $(this).attr('for');
@@ -762,7 +899,7 @@ $('#maxLedmA').on('input change', function(){
             showPopUp($(this).text(), info, 450, true);
         }        
     });
-    $('#popup-close-btn, #info-popup').on('click',function(){
+    $('#popup-close-btn, #info-popup').off('click.uicfg').on('click.uicfg',function(){
         if($('#info-popup').hasClass('cantClose')){
             return;
         }
@@ -770,17 +907,17 @@ $('#maxLedmA').on('input change', function(){
             $('#info-popup').fadeOut(450);
         }
     });
-    $("#popup-box").click(function(event){
+    $("#popup-box").off('click.uicfg').on('click.uicfg',function(event){
         event.stopPropagation();
     });
 
     //binds custom switch functionality
-    $('.switcher').on('click',function(){
+    $('.switcher').off('click.uicfg').on('click.uicfg',function(){
         $('#'+$(this).attr('for')).prop('checked',!$('#'+$(this).attr('for')).is(":checked")).trigger('change');
     });
     
     //binds custom switch text functionality
-    $('.switcher-text').on('click',function(){
+    $('.switcher-text').off('click.uicfg').on('click.uicfg',function(){
         $('#'+$(this).attr('for')).prop('checked',$(this).hasClass('right')).trigger('change');
     });
 
@@ -796,6 +933,7 @@ $('#maxLedmA').on('input change', function(){
     suffix (optional)     - concatanate this string after value
     */
     $('.number-select').each(function(){
+        $(this).empty();
         var from = $(this).attr('min')*1;
         var to = $(this).attr('max')*1;
         var step = !!$(this).attr('step') ? $(this).attr('step') : 1;
@@ -833,10 +971,12 @@ $('#maxLedmA').on('input change', function(){
         else if(index == 'utc_offset' || index == 'maxBrightness' || 
                 index == 'dayBright' || index == 'nightBright' || 
                 index == 'animMode' || index == 'rgbBrightness' ||
+                index == 'rgbAutoDimDayMinPercent' ||
                 index == 'maxLedmA' ||
                 index == 'rgbSpeed' ||
                 index == 'rgbEffect' || index == 'interval' ||
 				index == 'alarmPeriod' || index == 'radarTimeout' ||
+                index == 'alarmTune' ||
 				index == 'dateRepeatMin' || index == 'dateMode' ||
 				index == 'dateStart' || index == 'dateEnd' ||
 				index == 'timeStart' || index == 'timeEnd' ||
@@ -850,8 +990,7 @@ $('#maxLedmA').on('input change', function(){
 				index == 'mqttBrokerUser' || index =='mqttBrokerPsw' ||
 				index == 'firmware' || index == 'corrT0' || index == 'corrT1' ||
                 index == 'corrH0' || index == 'corrH1' || index == 'cathProtMin' ||
-                index == 'touchShortAction' || index == 'touchDoubleAction' || index == 'touchLongAction' ||
-                index == 'gestureUpAction' || index == 'gestureDownAction' || index == 'gestureLeftAction' || index == 'gestureRightAction'
+                index == 'touchShortAction' || index == 'touchDoubleAction' || index == 'touchLongAction'
             ){
             $('#'+index).val(value);
         }
@@ -859,19 +998,41 @@ $('#maxLedmA').on('input change', function(){
                 index == 'showZero' || index == 'enableBlink' ||
                 index == 'enableAutoShutoff' || index == 'alarmEnable' ||
                 index == 'rgbDir' || index == 'manualOverride' ||
-				index == 'enableAutoDim' || index == 'enableRadar' ||
-				index == 'enableDoubleBlink' || index == 'enableTimeDisplay' ||
+               index == 'enableAutoDim' || index == 'enableRadar' ||
+                index == 'enableDoubleBlink' || index == 'enableTimeDisplay' ||
                 index == 'enableTempDisplay' || index == 'enableHumidDisplay' || index == 'enablePressDisplay' ||
-                index == 'mqttEnable' || index == 'tempCF' || index == "wifiMode" || index == 'tubesSleep' || index == 'onboardLed'
-                ) && !!value
-            ){
-            $('#'+index).prop('checked',true);
+                index == 'mqttEnable' || index == 'tempCF' || index == "wifiMode" || index == 'tubesSleep' || index == 'onboardLed' ||
+                index == 'rgbNightEnabled'
+                )){
+            $('#'+index).prop('checked', !!value);
         }
         else if(index == "maxDigits"){
             //TODO
         }
     }
+    applyCalibrationLocalFallback();
+    updateRgbAutoDimDayMinPercentInfo();
+    updateCalibrationInfoLabels();
+    updateServiceCalibrationLiveReadouts();
 	$('.radar-holder').toggleClass('hidden',configuration['radarTimeout'] == 0);
+    $('.alarm-tune-holder').toggleClass('hidden', !configuration['alarmTuneSupported']);
+    (function applyAlarmTuneCapabilities(){
+        var supported = !!configuration['alarmTuneSupported'];
+        var minTune = parseInt(configuration['alarmTuneMin'], 10);
+        var maxTune = parseInt(configuration['alarmTuneMax'], 10);
+        if (isNaN(minTune)) minTune = supported ? 0 : 0;
+        if (isNaN(maxTune)) maxTune = supported ? 2 : 0;
+        if (maxTune < minTune) maxTune = minTune;
+        $('#alarmTune option').each(function(){
+            var v = parseInt($(this).val(), 10);
+            var keep = supported && !isNaN(v) && v >= minTune && v <= maxTune;
+            $(this).prop('hidden', !keep).prop('disabled', !keep);
+        });
+        var current = parseInt($('#alarmTune').val(), 10);
+        if (!supported || isNaN(current) || current < minTune || current > maxTune) {
+            $('#alarmTune').val(String(minTune));
+        }
+    })();
 	$('.mqtt-holder').toggleClass('hidden',configuration['mqttBrokerRefresh'] == 0);
 	$('.lux-holder').toggleClass('hidden',configuration['lux'] == 255);
     $('.pressure-holder').toggleClass('hidden',configuration['pressure'] == 255);
@@ -884,7 +1045,16 @@ $('#maxLedmA').on('input change', function(){
 $('.tube-holder').toggleClass('hidden',configuration['tubeDriver'] == "DUMMY");
 	$('.wordclock-holder').toggleClass('hidden',configuration['tubeDriver'] == "WORDCLOCK");
 	$('.sensors-holder').toggleClass('hidden',configuration['temperature'] == 255);
-    $('.gesture-holder').toggleClass('hidden', !configuration['gestureSensorPresent']);
+    (function applyOnboardLedSupport(){
+        var supported = (configuration['onboardLedSupported'] !== false);
+        var holder = $('#onboardLed').closest('.control-holder');
+        if(holder.length){
+            holder.toggleClass('hidden', !supported);
+        }
+        if(!supported && $('#onboardLed').length){
+            $('#onboardLed').prop('checked', false);
+        }
+    })();
 
     // Firmware-specific UI: hide unsupported "Transition" tube animation for fw64.
     (function applyFirmwareSpecificUi(){
@@ -896,6 +1066,31 @@ $('.tube-holder').toggleClass('hidden',configuration['tubeDriver'] == "DUMMY");
             if(hideTransition && String($('#animMode').val()) === '5'){
                 $('#animMode').val('0');
             }
+        }
+
+        // NCS312 (fw54): keep only RGB OFF / Fixed / RainbowFlow.
+        if (fw === 'fw54') {
+            $('#rgbEffect option').each(function(){
+                var v = String($(this).val());
+                var keep = (v === '0' || v === '1' || v === '2');
+                $(this).prop('hidden', !keep).prop('disabled', !keep);
+            });
+            var currentRgb = String($('#rgbEffect').val());
+            if (!(currentRgb === '0' || currentRgb === '1' || currentRgb === '2')) {
+                $('#rgbEffect').val('2');
+            }
+
+            // NCS312 (fw54): songs only for alarm tune (hide beep/classic/chime).
+            $('#alarmTune option').each(function(){
+                var v = parseInt($(this).val(), 10);
+                var keep = !isNaN(v) && v >= 3 && v <= 9;
+                $(this).prop('hidden', !keep).prop('disabled', !keep);
+            });
+            var currentTune = parseInt($('#alarmTune').val(), 10);
+            if (isNaN(currentTune) || currentTune < 3 || currentTune > 9) {
+                $('#alarmTune').val('3');
+            }
+
         }
     })();
 
@@ -910,9 +1105,17 @@ $('.tube-holder').toggleClass('hidden',configuration['tubeDriver'] == "DUMMY");
     //}
 
     setTimeout(function(){
-        $('input, select').on('change',function(){
+        // Bind generic settings handler in a dedicated namespace so it does not
+        // remove specialized handlers (e.g. RGB picker/sliders).
+        $('input, select').off('change.uicfgCommon').on('change.uicfgCommon',function(){
             var controlId = $(this).attr('id');
             if(controlId === 'maxLedmA'){
+                return;
+            }
+            if(controlId === 'corrT0' || controlId === 'corrT1' || controlId === 'corrH0' || controlId === 'corrH1' || controlId === 'cathProtMin'){
+                return;
+            }
+            if(controlId === 'rgbFixPicker' || controlId === 'rgbFixR' || controlId === 'rgbFixG' || controlId === 'rgbFixB'){
                 return;
             }
             var value = '';
@@ -938,11 +1141,11 @@ $('.tube-holder').toggleClass('hidden',configuration['tubeDriver'] == "DUMMY");
                 sendMsgToArduino(key + 'Minutes', minutes);
             }
         });
-        $('#dateMode').on('change',function(){
+        $('#dateMode').off('change.uicfg').on('change.uicfg',function(){
             configuration["dateMode"] = $(this).val();
             setCurrentInfos();
         });
-        $('#tempCF').on('change',function(){
+        $('#tempCF').off('change.uicfg').on('change.uicfg',function(){
             configuration["tempCF"] = !configuration["tempCF"];
             setCurrentInfos();
         });
@@ -1030,19 +1233,24 @@ function getClockDetails(){
 
 function getCurrentInfos(){
     if(isTest){return;}
-    $.get('/getCurrentInfos').done(function(data){
-        for(var i in data){
-            configuration[i] = data[i];
-        }
-        updateMainExtrasFromCurrentInfos(data);
-        if(!!data["popupMsg"] && data["popupMsg"].length > 0){
-            showPopUp("Info", data["popupMsg"], 300, true);
-        }
-        setCurrentInfos();
-        setTimeout(getCurrentInfos,20000);   //refreshes time every 20 second by calling itself
-    }).always(function(){
-        
-    });
+    apiGet('/getCurrentInfos')
+        .done(function(data){
+            for(var i in data){
+                configuration[i] = data[i];
+            }
+            updateMainExtrasFromCurrentInfos(data);
+            if(!!data["popupMsg"] && data["popupMsg"].length > 0){
+                showPopUp("Info", data["popupMsg"], 300, true);
+            }
+            setCurrentInfos();
+            clearTimeout(_currentInfosTimer);
+            _currentInfosTimer = setTimeout(getCurrentInfos, 20000);   // refresh every 20s
+        })
+        .fail(function(){
+            // Keep polling alive even during transient auth/network errors.
+            clearTimeout(_currentInfosTimer);
+            _currentInfosTimer = setTimeout(getCurrentInfos, 5000);
+        });
 }
 
 function getCurrentDate(date){

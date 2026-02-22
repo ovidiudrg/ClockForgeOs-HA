@@ -33,7 +33,7 @@ int DRAM_ATTR animPtr = 0;
 //Brightness PWM timing. Greater value => slower brightness PWM frequency  
 // Suggested values: 100000 / 20000, for faster PWM: 50000 / 10000
 uint32_t DRAM_ATTR PWMrefresh = 100000; 
-uint32_t DRAM_ATTR PWM_min = 6000;
+uint32_t DRAM_ATTR PWM_min = 10000;
 
 uint32_t DRAM_ATTR time1 = 2000;
 uint32_t DRAM_ATTR time2 = 2000; 
@@ -319,3 +319,4 @@ void showBits(uint32_t bits) {
 
 */
 #endif
+

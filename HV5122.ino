@@ -25,7 +25,7 @@ char tubeDriver[] = "HV5122";
 #define SHIFT_LSB_FIRST false  //true= LSB first, false= MSB first
 int PWMrefresh = 10000; //Brightness PWM period. Greater value => slower brightness PWM frequency
 //int PWMtiming[11] = {0,500,800,1200,2000,2500,3000,4500,6000,8000,10000};
-int PWM_min = 500;
+int PWM_min = 1000;
 int PWM_max = 10000;
 
 void setup_pins() {
