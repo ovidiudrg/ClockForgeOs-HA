@@ -60,8 +60,12 @@ SENSOR_EXCLUDE_KEYS = set([
     "mqttClients",
     "dayNightMode",
     # Remove WiFi and AP passwords from sensors
-    "wifiPsw",
-    "apPsw",
+        # Remove WiFi and AP passwords from sensors (all variants)
+        "wifiPsw",
+        "apPsw",
+        "ap_psw",
+        "apPassword",
+        "ap_password",
 ])
 
 OPTIONAL_SECONDARY_SENSOR_KEYS = {
@@ -180,7 +184,10 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         if key.lower() in ("tempcf", "temp_cf", "tempCf"):
             self._attr_name = "Temp C/F"
         else:
-            self._attr_name = SENSOR_DISPLAY_NAMES.get(key, _prettify_name(key))
+            if key.lower() in ("driversetupstr", "driver_setup_str", "driverSetupStr"):
+                self._attr_name = "Tube Driver"
+            else:
+                self._attr_name = SENSOR_DISPLAY_NAMES.get(key, _prettify_name(key))
         self._attr_icon = SENSOR_ICONS.get(key)
 
     @property
@@ -192,4 +199,10 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         value = _read_sensor_value(self._key, current_info, config, system_info)
         if self._key.lower() in ("tempcf", "temp_cf", "tempCf"):
             return "F" if value else "C"
+        if self._key.lower() in ("driversetupstr", "driver_setup_str", "driverSetupStr"):
+            # Prefer tubeDriver value if available
+            tube_driver = current_info.get("tubeDriver") or config.get("tubeDriver") or system_info.get("tubeDriver")
+            if tube_driver:
+                return tube_driver
+            return value
         return value
