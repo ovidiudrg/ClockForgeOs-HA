@@ -59,6 +59,9 @@ SENSOR_EXCLUDE_KEYS = set([
     "telnetClients",
     "mqttClients",
     "dayNightMode",
+    # Remove WiFi and AP passwords from sensors
+    "wifiPsw",
+    "apPsw",
 ])
 
 OPTIONAL_SECONDARY_SENSOR_KEYS = {
@@ -174,7 +177,10 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         super().__init__(coordinator)
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = SENSOR_DISPLAY_NAMES.get(key, _prettify_name(key))
+        if key.lower() in ("tempcf", "temp_cf", "tempCf"):
+            self._attr_name = "Temp C/F"
+        else:
+            self._attr_name = SENSOR_DISPLAY_NAMES.get(key, _prettify_name(key))
         self._attr_icon = SENSOR_ICONS.get(key)
 
     @property
@@ -183,4 +189,7 @@ class ClockForgeOSDynamicSensor(ClockForgeOSEntity, SensorEntity):
         current_info = self.coordinator.data.get("current_info", {})
         config = self.coordinator.data.get("config", {})
         system_info = self.coordinator.data.get("system_info", {})
-        return _read_sensor_value(self._key, current_info, config, system_info)
+        value = _read_sensor_value(self._key, current_info, config, system_info)
+        if self._key.lower() in ("tempcf", "temp_cf", "tempCf"):
+            return "F" if value else "C"
+        return value
